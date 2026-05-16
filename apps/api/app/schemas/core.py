@@ -48,15 +48,20 @@ class FacilitySummary(BaseModel):
 
 class CensusRowOut(BaseModel):
     census_id: UUID
+    facility_id: UUID
     patient_id: UUID
     mrn: str | None
     patient_name: str | None
+    first_name: str | None
+    last_name: str | None
     date_of_birth: str | None
     gender: str | None
     payer_name: str | None
+    insurance_member_id: str | None
     room_number: str | None
     bed_number: str | None
     care_level: str | None
     visit_due_flag: bool
     unsigned_note_flag: bool
     missing_charge_flag: bool
+    status: str | None

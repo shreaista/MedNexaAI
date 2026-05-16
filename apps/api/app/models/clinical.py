@@ -31,6 +31,11 @@ class Patient(Base):
     last_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     gender: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    payer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    insurance_member_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    admission_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    discharge_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -46,10 +51,10 @@ class PatientCensus(Base):
     __tablename__ = "patient_census"
 
     census_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
     )
     facility_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
@@ -61,17 +66,19 @@ class PatientCensus(Base):
         ForeignKey("patients.patient_id", ondelete="CASCADE"),
         nullable=False,
     )
-    mrn: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    patient_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
-    gender: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    payer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    census_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     room_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
     bed_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
     care_level: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    attending_provider_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("providers.provider_id", ondelete="SET NULL"),
+        nullable=True,
+    )
     visit_due_flag: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     unsigned_note_flag: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     missing_charge_flag: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
