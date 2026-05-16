@@ -1,0 +1,1 @@
+"""MedNexa FastAPI application package."""
