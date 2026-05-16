@@ -1,16 +1,8 @@
-from app.models.billing import BillingQueue, Charge, ClaimReadiness
-from app.models.clinical import Patient, Visit, VisitDiagnosis, VisitNote, VisitProcedure
-from app.models.core import Facility, User
+"""Import models so SQLAlchemy registers mappings when the package loads."""
 
-__all__ = [
-    "BillingQueue",
-    "Charge",
-    "ClaimReadiness",
-    "Facility",
-    "Patient",
-    "User",
-    "Visit",
-    "VisitDiagnosis",
-    "VisitNote",
-    "VisitProcedure",
-]
+from app.models import ai as ai_models  # noqa: F401
+from app.models import billing as billing_models  # noqa: F401
+from app.models import clinical as clinical_models  # noqa: F401
+from app.models import core as core_models  # noqa: F401
+
+__all__ = ["ai_models", "billing_models", "clinical_models", "core_models"]

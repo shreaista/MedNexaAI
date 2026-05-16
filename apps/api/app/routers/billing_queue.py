@@ -1,60 +1,57 @@
-from uuid import UUID
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.deps import tenant_query
 from app.models.billing import BillingQueue, Charge, ClaimReadiness
-from app.models.clinical import Patient, Visit
-from app.models.core import User
-from app.schemas.billing import BillingQueueItemOut
+from app.models.clinical import ClinicalVisit, Patient
+from app.models.core import Provider
+from app.schemas.billing import BillingQueueListItem
 
-router = APIRouter(prefix="/billing-queue", tags=["billing"])
+router = APIRouter(prefix="/billing-queue", tags=["billing-queue"])
 
 
-def _patient_label(patient: Patient) -> str:
+def _patient_display(patient: Patient) -> str:
     parts = [patient.first_name or "", patient.last_name or ""]
-    label = " ".join(p.strip() for p in parts if p.strip())
-    return label or (patient.external_id or str(patient.id))
+    label = " ".join(part for part in parts if part).strip()
+    return label or (patient.mrn or str(patient.id))
 
 
-@router.get("", response_model=list[BillingQueueItemOut])
-def list_billing_queue(
-    tenant_id: UUID = Depends(tenant_query),
-    db: Session = Depends(get_db),
-) -> list[BillingQueueItemOut]:
+@router.get("", response_model=list[BillingQueueListItem])
+def list_billing_queue(db: Session = Depends(get_db)) -> list[BillingQueueListItem]:
     stmt = (
-        select(BillingQueue, Charge, Patient, Visit, User, ClaimReadiness)
+        select(BillingQueue, Charge, Patient, Provider, ClaimReadiness, ClinicalVisit)
         .join(Charge, BillingQueue.charge_id == Charge.id)
         .join(Patient, Charge.patient_id == Patient.id)
-        .join(Visit, Charge.visit_id == Visit.id)
-        .join(User, Visit.provider_id == User.id)
+        .join(ClinicalVisit, Charge.visit_id == ClinicalVisit.id)
+        .join(Provider, ClinicalVisit.provider_id == Provider.id)
         .outerjoin(ClaimReadiness, ClaimReadiness.charge_id == Charge.id)
-        .where(BillingQueue.tenant_id == tenant_id)
         .order_by(BillingQueue.created_at.desc())
     )
 
     rows = db.execute(stmt).all()
-    result: list[BillingQueueItemOut] = []
-    for queue, charge, patient, visit, provider, readiness in rows:
-        score = float(readiness.readiness_score) if readiness is not None else 0.0
-        rstatus = readiness.status if readiness is not None else "UNKNOWN"
-        result.append(
-            BillingQueueItemOut(
+    items: list[BillingQueueListItem] = []
+
+    for queue, charge, patient, provider, readiness, _visit in rows:
+        score = readiness.readiness_score if readiness is not None else Decimal("0")
+        rstatus = readiness.readiness_status if readiness is not None else "UNKNOWN"
+        items.append(
+            BillingQueueListItem(
                 queue_id=queue.id,
                 queue_status=queue.queue_status,
+                priority=queue.priority,
                 charge_id=charge.id,
                 charge_status=charge.charge_status,
-                amount_cents=charge.amount_cents,
-                visit_id=visit.id,
-                patient_id=patient.id,
-                patient_display=_patient_label(patient),
-                provider_id=provider.id,
-                provider_email=provider.email,
+                patient_name=_patient_display(patient),
+                mrn=patient.mrn,
+                provider_name=provider.full_name,
+                primary_icd10=charge.primary_icd10,
+                primary_cpt=charge.primary_cpt,
                 readiness_score=score,
                 readiness_status=rstatus,
             )
         )
-    return result
+
+    return items

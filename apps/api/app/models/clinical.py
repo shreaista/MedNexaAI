@@ -1,9 +1,11 @@
+"""Clinical tables mapped to `public.*`."""
+
 from __future__ import annotations
 
+import uuid
 from datetime import date, datetime
-from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, func
 from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -12,136 +14,228 @@ from app.db.database import Base
 
 class Patient(Base):
     __tablename__ = "patients"
-    __table_args__ = {"schema": "clinical"}
 
-    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("core.tenants.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
     )
-    facility_id: Mapped[UUID | None] = mapped_column(
+    facility_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("core.facilities.id", ondelete="SET NULL"),
+        ForeignKey("facilities.id", ondelete="SET NULL"),
         nullable=True,
     )
-    external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    gender: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    mrn: Mapped[str | None] = mapped_column(String(64), nullable=True)
     first_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
+    gender: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
     )
 
 
-class Visit(Base):
-    __tablename__ = "visits"
-    __table_args__ = {"schema": "clinical"}
+class PatientCensus(Base):
+    __tablename__ = "patient_census"
 
-    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("core.tenants.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    facility_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("facilities.id", ondelete="CASCADE"),
         nullable=False,
     )
-    facility_id: Mapped[UUID] = mapped_column(
+    patient_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("core.facilities.id", ondelete="RESTRICT"),
+        ForeignKey("patients.id", ondelete="CASCADE"),
         nullable=False,
     )
-    patient_id: Mapped[UUID] = mapped_column(
+    mrn: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    patient_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
+    gender: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    payer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    room_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    bed_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    care_level: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    visit_due_flag: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    unsigned_note_flag: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    missing_charge_flag: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class ClinicalVisit(Base):
+    __tablename__ = "clinical_visits"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("clinical.patients.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
     )
-    provider_id: Mapped[UUID] = mapped_column(
+    facility_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("core.users.id", ondelete="RESTRICT"),
+        ForeignKey("facilities.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("patients.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("providers.id", ondelete="RESTRICT"),
         nullable=False,
     )
     visit_type: Mapped[str] = mapped_column(String(64), nullable=False)
     specialty: Mapped[str] = mapped_column(String(128), nullable=False)
     chief_complaint: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="OPEN")
+    status: Mapped[str | None] = mapped_column(String(32), nullable=True, default="OPEN")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class NoteTemplate(Base):
+    __tablename__ = "note_templates"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
     )
 
 
 class VisitNote(Base):
     __tablename__ = "visit_notes"
-    __table_args__ = {"schema": "clinical"}
 
-    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("core.tenants.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
     )
-    visit_id: Mapped[UUID] = mapped_column(
+    visit_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("clinical.visits.id", ondelete="CASCADE"),
+        ForeignKey("clinical_visits.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("patients.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("providers.id", ondelete="RESTRICT"),
         nullable=False,
     )
     subjective: Mapped[str | None] = mapped_column(Text, nullable=True)
     objective: Mapped[str | None] = mapped_column(Text, nullable=True)
     assessment: Mapped[str | None] = mapped_column(Text, nullable=True)
     plan: Mapped[str | None] = mapped_column(Text, nullable=True)
-    full_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    full_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     note_status: Mapped[str] = mapped_column(String(32), nullable=False, default="DRAFT")
     signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    signed_by: Mapped[UUID | None] = mapped_column(
+    signed_by: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("core.users.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    ai_review_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
     )
 
 
 class VisitDiagnosis(Base):
     __tablename__ = "visit_diagnoses"
-    __table_args__ = {"schema": "clinical"}
 
-    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
-    visit_id: Mapped[UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    visit_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("clinical.visits.id", ondelete="CASCADE"),
+        ForeignKey("clinical_visits.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
     )
     icd10_code: Mapped[str] = mapped_column(String(16), nullable=False)
-    description: Mapped[str] = mapped_column(String(512), nullable=False, default="")
-    is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    description: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    is_ai_suggested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    confidence_score: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
 
 class VisitProcedure(Base):
     __tablename__ = "visit_procedures"
-    __table_args__ = {"schema": "clinical"}
 
-    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
-    visit_id: Mapped[UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    visit_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("clinical.visits.id", ondelete="CASCADE"),
+        ForeignKey("clinical_visits.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
     )
     cpt_code: Mapped[str] = mapped_column(String(16), nullable=False)
-    description: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    description: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    modifier: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    units: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False, default=1)
+    is_ai_suggested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    confidence_score: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )

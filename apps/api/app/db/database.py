@@ -9,22 +9,16 @@ from app.core.config import get_settings
 
 
 class Base(DeclarativeBase):
-    """SQLAlchemy ORM base."""
+    """SQLAlchemy ORM base for existing `public` schema tables."""
 
 
 _settings = get_settings()
-_engine = create_engine(
+engine = create_engine(
     _settings.database_url,
     pool_pre_ping=True,
-    future=True,
 )
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=_engine,
-    future=True,
-)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def get_db() -> Generator[Session, None, None]:

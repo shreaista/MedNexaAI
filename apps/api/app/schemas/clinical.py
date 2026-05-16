@@ -1,34 +1,25 @@
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
-class FacilitySummary(BaseModel):
-    """Nested facility snippet for patient context."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    code: str
-    name: str
-    active: bool
+from app.schemas.core import FacilitySummary
 
 
 class PatientDetailOut(BaseModel):
     patient_id: UUID
     tenant_id: UUID
-    external_id: str | None
+    mrn: str | None
     first_name: str | None
     last_name: str | None
-    birth_date: date | None
+    date_of_birth: date | None
     gender: str | None
-    active: bool
     facility: FacilitySummary | None
 
 
 class VisitCreate(BaseModel):
-    tenant_id: UUID = Field(description="Must match an existing tenant (demo seed UUID supported).")
+    tenant_id: UUID
     facility_id: UUID
     patient_id: UUID
     provider_id: UUID
@@ -37,7 +28,23 @@ class VisitCreate(BaseModel):
     chief_complaint: str | None = Field(default=None, max_length=4000)
 
 
-class VisitOut(BaseModel):
+class ProviderSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    full_name: str
+
+
+class PatientSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    mrn: str | None
+    first_name: str | None
+    last_name: str | None
+
+
+class VisitSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
@@ -48,7 +55,29 @@ class VisitOut(BaseModel):
     visit_type: str
     specialty: str
     chief_complaint: str | None
-    status: str
+    status: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class VisitNoteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    visit_id: UUID
+    tenant_id: UUID
+    patient_id: UUID
+    provider_id: UUID
+    subjective: str | None
+    objective: str | None
+    assessment: str | None
+    plan: str | None
+    full_note: str | None
+    ai_generated: bool
+    note_status: str
+    signed_at: datetime | None
+    signed_by: UUID | None
+    ai_review_status: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -58,9 +87,11 @@ class VisitDiagnosisOut(BaseModel):
 
     id: UUID
     visit_id: UUID
+    tenant_id: UUID
     icd10_code: str
-    description: str
-    is_primary: bool
+    description: str | None
+    is_ai_suggested: bool
+    confidence_score: Decimal | None
     created_at: datetime
 
 
@@ -69,57 +100,65 @@ class VisitProcedureOut(BaseModel):
 
     id: UUID
     visit_id: UUID
+    tenant_id: UUID
     cpt_code: str
-    description: str
+    description: str | None
+    modifier: str | None
+    units: Decimal
+    is_ai_suggested: bool
+    confidence_score: Decimal | None
     created_at: datetime
 
 
-class VisitNoteOut(BaseModel):
+class ChargeSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    visit_id: UUID
-    subjective: str | None
-    objective: str | None
-    assessment: str | None
-    plan: str | None
-    full_note: str
-    ai_generated: bool
-    note_status: str
-    signed_at: datetime | None
-    signed_by: UUID | None
-    created_at: datetime
-    updated_at: datetime
+    charge_status: str
+    primary_icd10: str | None
+    primary_cpt: str | None
+    amount_cents: int
 
 
-class VisitDetailOut(VisitOut):
+class VisitDetailOut(BaseModel):
+    visit: VisitSummary
+    patient: PatientSummary
+    provider: ProviderSummary
+    note: VisitNoteOut | None
     diagnoses: list[VisitDiagnosisOut]
     procedures: list[VisitProcedureOut]
-    notes: list[VisitNoteOut]
+    charge: ChargeSummary | None
 
 
 class VisitNoteCreate(BaseModel):
+    tenant_id: UUID
+    patient_id: UUID
+    provider_id: UUID
     subjective: str | None = None
     objective: str | None = None
     assessment: str | None = None
     plan: str | None = None
-    full_note: str = Field(default="", max_length=20000)
+    full_note: str | None = Field(default=None, max_length=20000)
     ai_generated: bool = False
 
 
-class NoteSignRequest(BaseModel):
-    signed_by: UUID | None = Field(
-        default=None,
-        description="Optional provider user id; stored when signing without full auth.",
-    )
+class NoteSignBody(BaseModel):
+    signed_by: UUID
 
 
 class DiagnosisCreate(BaseModel):
+    tenant_id: UUID
     icd10_code: str = Field(min_length=1, max_length=16)
-    description: str = Field(default="", max_length=512)
-    is_primary: bool = False
+    description: str | None = Field(default=None, max_length=512)
+    is_ai_suggested: bool = False
+    confidence_score: Decimal | None = Field(default=None, ge=0, le=100)
 
 
 class ProcedureCreate(BaseModel):
+    tenant_id: UUID
     cpt_code: str = Field(min_length=1, max_length=16)
-    description: str = Field(default="", max_length=512)
+    description: str | None = Field(default=None, max_length=512)
+    modifier: str | None = Field(default=None, max_length=16)
+    units: Decimal = Field(default=Decimal("1"), gt=0)
+    is_ai_suggested: bool = False
+    confidence_score: Decimal | None = Field(default=None, ge=0, le=100)

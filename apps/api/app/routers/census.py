@@ -5,28 +5,44 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.deps import tenant_query
-from app.models.clinical import Patient
+from app.models.clinical import PatientCensus
 from app.models.core import Facility
-from app.schemas.core import CensusPatientOut
+from app.schemas.core import CensusRowOut
 
 router = APIRouter(prefix="/facilities", tags=["census"])
 
 
-@router.get("/{facility_id}/census", response_model=list[CensusPatientOut])
+@router.get("/{facility_id}/census", response_model=list[CensusRowOut])
 def get_facility_census(
     facility_id: UUID,
-    tenant_id: UUID = Depends(tenant_query),
     db: Session = Depends(get_db),
-) -> list[Patient]:
+) -> list[CensusRowOut]:
     facility = db.get(Facility, facility_id)
-    if facility is None or facility.tenant_id != tenant_id or not facility.active:
+    if facility is None or facility.status != "ACTIVE":
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Facility not found")
 
     stmt = (
-        select(Patient)
-        .where(Patient.facility_id == facility_id)
-        .where(Patient.active.is_(True))
-        .order_by(Patient.last_name, Patient.first_name)
+        select(PatientCensus)
+        .where(PatientCensus.facility_id == facility_id)
+        .order_by(PatientCensus.patient_name)
     )
-    return list(db.scalars(stmt))
+    rows = list(db.scalars(stmt))
+
+    return [
+        CensusRowOut(
+            census_id=row.id,
+            patient_id=row.patient_id,
+            mrn=row.mrn,
+            patient_name=row.patient_name,
+            date_of_birth=row.date_of_birth.isoformat() if row.date_of_birth else None,
+            gender=row.gender,
+            payer_name=row.payer_name,
+            room_number=row.room_number,
+            bed_number=row.bed_number,
+            care_level=row.care_level,
+            visit_due_flag=row.visit_due_flag,
+            unsigned_note_flag=row.unsigned_note_flag,
+            missing_charge_flag=row.missing_charge_flag,
+        )
+        for row in rows
+    ]

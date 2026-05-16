@@ -2,100 +2,107 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.billing import BillingQueue, Charge, ClaimReadiness
-from app.models.clinical import Visit, VisitDiagnosis, VisitProcedure
-from app.schemas.billing import ChargeCreate, ChargeOut, ChargeWithWorkflowOut
+from app.models.clinical import ClinicalVisit, VisitDiagnosis, VisitNote, VisitProcedure
+from app.schemas.billing import ChargeWorkflowResult
+from app.services.readiness_service import evaluate_claim_readiness
 
 router = APIRouter(prefix="/visits", tags=["charges"])
 
 
-def _readiness_score(diagnosis_id: UUID | None, procedure_id: UUID | None) -> Decimal:
-    """Heuristic readiness score placeholder until payer rules integrate."""
-    if diagnosis_id is not None and procedure_id is not None:
-        return Decimal("92.50")
-    if diagnosis_id is not None or procedure_id is not None:
-        return Decimal("68.00")
-    return Decimal("45.00")
-
-
 @router.post(
     "/{visit_id}/charges",
-    response_model=ChargeWithWorkflowOut,
+    response_model=ChargeWorkflowResult,
     status_code=status.HTTP_201_CREATED,
 )
-def create_visit_charge(
+def create_charge_from_visit(
     visit_id: UUID,
-    body: ChargeCreate,
     db: Session = Depends(get_db),
-) -> ChargeWithWorkflowOut:
-    visit = db.get(Visit, visit_id)
+) -> ChargeWorkflowResult:
+    visit = db.get(ClinicalVisit, visit_id)
     if visit is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Visit not found")
 
-    diagnosis = db.get(VisitDiagnosis, body.diagnosis_id)
-    if diagnosis is None or diagnosis.visit_id != visit_id:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail="Diagnosis does not belong to this visit",
-        )
+    first_dx = db.scalar(
+        select(VisitDiagnosis)
+        .where(VisitDiagnosis.visit_id == visit_id)
+        .order_by(VisitDiagnosis.created_at.asc())
+        .limit(1)
+    )
+    first_px = db.scalar(
+        select(VisitProcedure)
+        .where(VisitProcedure.visit_id == visit_id)
+        .order_by(VisitProcedure.created_at.asc())
+        .limit(1)
+    )
 
-    procedure = db.get(VisitProcedure, body.procedure_id)
-    if procedure is None or procedure.visit_id != visit_id:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            detail="Procedure does not belong to this visit",
+    has_note = (
+        db.scalar(
+            select(VisitNote.id).where(VisitNote.visit_id == visit_id).limit(1)
         )
+        is not None
+    )
+    has_dx = first_dx is not None
+    has_px = first_px is not None
 
-    score = _readiness_score(body.diagnosis_id, body.procedure_id)
+    evaluation = evaluate_claim_readiness(
+        has_note=has_note,
+        has_diagnosis=has_dx,
+        has_procedure=has_px,
+    )
 
     charge = Charge(
         tenant_id=visit.tenant_id,
         visit_id=visit_id,
-        facility_id=visit.facility_id,
         patient_id=visit.patient_id,
-        diagnosis_id=body.diagnosis_id,
-        procedure_id=body.procedure_id,
-        amount_cents=body.amount_cents,
+        facility_id=visit.facility_id,
+        provider_id=visit.provider_id,
+        primary_icd10=first_dx.icd10_code if first_dx else None,
+        primary_cpt=first_px.cpt_code if first_px else None,
         charge_status="SUBMITTED",
+        amount_cents=0,
     )
 
     try:
         db.add(charge)
         db.flush()
 
-        billing_queue_row = BillingQueue(
+        readiness = ClaimReadiness(
+            charge_id=charge.id,
+            readiness_score=Decimal(str(evaluation.readiness_score)),
+            readiness_status=evaluation.readiness_status,
+            missing_note_flag=evaluation.missing_note,
+            missing_diagnosis_flag=evaluation.missing_diagnosis,
+            missing_cpt_flag=evaluation.missing_cpt,
+        )
+        queue = BillingQueue(
             tenant_id=visit.tenant_id,
             charge_id=charge.id,
             queue_status="NEW",
+            priority="NORMAL",
         )
-        readiness = ClaimReadiness(
-            charge_id=charge.id,
-            readiness_score=score,
-            status="EVALUATED",
-        )
-        db.add(billing_queue_row)
+        db.add(queue)
         db.add(readiness)
         db.commit()
     except IntegrityError:
         db.rollback()
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            detail="Charge workflow record could not be created",
+            detail="Unable to persist charge workflow (duplicate or constraint violation)",
         )
 
     db.refresh(charge)
-    db.refresh(billing_queue_row)
+    db.refresh(queue)
     db.refresh(readiness)
 
-    return ChargeWithWorkflowOut(
-        charge=ChargeOut.model_validate(charge),
-        billing_queue_id=billing_queue_row.id,
-        queue_status=billing_queue_row.queue_status,
-        claim_readiness_id=readiness.id,
+    return ChargeWorkflowResult(
+        charge_id=charge.id,
+        queue_id=queue.id,
         readiness_score=float(readiness.readiness_score),
-        readiness_status=readiness.status,
+        readiness_status=readiness.readiness_status,
     )
