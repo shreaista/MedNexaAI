@@ -16,18 +16,18 @@ router = APIRouter(prefix="/billing-queue", tags=["billing-queue"])
 def _patient_display(patient: Patient) -> str:
     parts = [patient.first_name or "", patient.last_name or ""]
     label = " ".join(part for part in parts if part).strip()
-    return label or (patient.mrn or str(patient.id))
+    return label or (patient.mrn or str(patient.patient_id))
 
 
 @router.get("", response_model=list[BillingQueueListItem])
 def list_billing_queue(db: Session = Depends(get_db)) -> list[BillingQueueListItem]:
     stmt = (
         select(BillingQueue, Charge, Patient, Provider, ClaimReadiness, ClinicalVisit)
-        .join(Charge, BillingQueue.charge_id == Charge.id)
-        .join(Patient, Charge.patient_id == Patient.id)
-        .join(ClinicalVisit, Charge.visit_id == ClinicalVisit.id)
-        .join(Provider, ClinicalVisit.provider_id == Provider.id)
-        .outerjoin(ClaimReadiness, ClaimReadiness.charge_id == Charge.id)
+        .join(Charge, BillingQueue.charge_id == Charge.charge_id)
+        .join(Patient, Charge.patient_id == Patient.patient_id)
+        .join(ClinicalVisit, Charge.visit_id == ClinicalVisit.visit_id)
+        .join(Provider, ClinicalVisit.provider_id == Provider.provider_id)
+        .outerjoin(ClaimReadiness, ClaimReadiness.charge_id == Charge.charge_id)
         .order_by(BillingQueue.created_at.desc())
     )
 
@@ -39,10 +39,10 @@ def list_billing_queue(db: Session = Depends(get_db)) -> list[BillingQueueListIt
         rstatus = readiness.readiness_status if readiness is not None else "UNKNOWN"
         items.append(
             BillingQueueListItem(
-                queue_id=queue.id,
+                queue_id=queue.queue_id,
                 queue_status=queue.queue_status,
                 priority=queue.priority,
-                charge_id=charge.id,
+                charge_id=charge.charge_id,
                 charge_status=charge.charge_status,
                 patient_name=_patient_display(patient),
                 mrn=patient.mrn,

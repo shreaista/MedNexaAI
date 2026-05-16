@@ -1,4 +1,4 @@
-"""AI/RAG tables mapped to `public.*` (minimal columns; expand as integration matures)."""
+"""AI/RAG tables mapped to `public.*` (explicit PK columns)."""
 
 from __future__ import annotations
 
@@ -16,15 +16,15 @@ from app.db.database import Base
 class AiRequest(Base):
     __tablename__ = "ai_requests"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    ai_request_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="SET NULL"),
+        ForeignKey("tenants.tenant_id", ondelete="SET NULL"),
         nullable=True,
     )
     visit_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("clinical_visits.id", ondelete="SET NULL"),
+        ForeignKey("clinical_visits.visit_id", ondelete="SET NULL"),
         nullable=True,
     )
     model_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -43,10 +43,10 @@ class AiRequest(Base):
 class AiResponse(Base):
     __tablename__ = "ai_responses"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    ai_response_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     ai_request_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("ai_requests.id", ondelete="CASCADE"),
+        ForeignKey("ai_requests.ai_request_id", ondelete="CASCADE"),
         nullable=False,
     )
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -59,15 +59,15 @@ class AiResponse(Base):
 class AiAuditLog(Base):
     __tablename__ = "ai_audit_log"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    audit_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="SET NULL"),
+        ForeignKey("tenants.tenant_id", ondelete="SET NULL"),
         nullable=True,
     )
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
+        ForeignKey("users.user_id", ondelete="SET NULL"),
         nullable=True,
     )
     action: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -80,10 +80,10 @@ class AiAuditLog(Base):
 class RagDocument(Base):
     __tablename__ = "rag_documents"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="SET NULL"),
+        ForeignKey("tenants.tenant_id", ondelete="SET NULL"),
         nullable=True,
     )
     title: Mapped[str | None] = mapped_column(String(512), nullable=True)

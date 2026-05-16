@@ -1,4 +1,4 @@
-"""Billing tables mapped to `public.*`."""
+"""Billing tables mapped to `public.*` (explicit PK columns)."""
 
 from __future__ import annotations
 
@@ -17,30 +17,30 @@ from app.db.database import Base
 class Charge(Base):
     __tablename__ = "charges"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    charge_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
         nullable=False,
     )
     visit_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("clinical_visits.id", ondelete="CASCADE"),
+        ForeignKey("clinical_visits.visit_id", ondelete="CASCADE"),
         nullable=False,
     )
     patient_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("patients.id", ondelete="CASCADE"),
+        ForeignKey("patients.patient_id", ondelete="CASCADE"),
         nullable=False,
     )
     facility_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("facilities.id", ondelete="SET NULL"),
+        ForeignKey("facilities.facility_id", ondelete="SET NULL"),
         nullable=True,
     )
     provider_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("providers.id", ondelete="SET NULL"),
+        ForeignKey("providers.provider_id", ondelete="SET NULL"),
         nullable=True,
     )
     primary_icd10: Mapped[str | None] = mapped_column(String(16), nullable=True)
@@ -61,15 +61,15 @@ class Charge(Base):
 class BillingQueue(Base):
     __tablename__ = "billing_queue"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    queue_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
         nullable=False,
     )
     charge_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("charges.id", ondelete="CASCADE"),
+        ForeignKey("charges.charge_id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
     )
@@ -89,10 +89,10 @@ class BillingQueue(Base):
 class ClaimReadiness(Base):
     __tablename__ = "claim_readiness"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    readiness_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     charge_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("charges.id", ondelete="CASCADE"),
+        ForeignKey("charges.charge_id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
     )
@@ -115,10 +115,10 @@ class ClaimReadiness(Base):
 class DenialRisk(Base):
     __tablename__ = "denial_risk"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    denial_risk_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     charge_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("charges.id", ondelete="CASCADE"),
+        ForeignKey("charges.charge_id", ondelete="CASCADE"),
         nullable=True,
     )
     risk_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
@@ -137,10 +137,10 @@ class DenialRisk(Base):
 class ClaimEvent(Base):
     __tablename__ = "claim_events"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     charge_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("charges.id", ondelete="SET NULL"),
+        ForeignKey("charges.charge_id", ondelete="SET NULL"),
         nullable=True,
     )
     event_type: Mapped[str | None] = mapped_column(String(64), nullable=True)

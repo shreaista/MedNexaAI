@@ -25,7 +25,7 @@ def get_patient(patient_id: UUID, db: Session = Depends(get_db)) -> PatientDetai
             facility_summary = FacilitySummary.model_validate(facility)
 
     return PatientDetailOut(
-        patient_id=patient.id,
+        patient_id=patient.patient_id,
         tenant_id=patient.tenant_id,
         mrn=patient.mrn,
         first_name=patient.first_name,

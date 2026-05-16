@@ -43,7 +43,7 @@ def create_charge_from_visit(
 
     has_note = (
         db.scalar(
-            select(VisitNote.id).where(VisitNote.visit_id == visit_id).limit(1)
+            select(VisitNote.note_id).where(VisitNote.visit_id == visit_id).limit(1)
         )
         is not None
     )
@@ -73,7 +73,7 @@ def create_charge_from_visit(
         db.flush()
 
         readiness = ClaimReadiness(
-            charge_id=charge.id,
+            charge_id=charge.charge_id,
             readiness_score=Decimal(str(evaluation.readiness_score)),
             readiness_status=evaluation.readiness_status,
             missing_note_flag=evaluation.missing_note,
@@ -82,7 +82,7 @@ def create_charge_from_visit(
         )
         queue = BillingQueue(
             tenant_id=visit.tenant_id,
-            charge_id=charge.id,
+            charge_id=charge.charge_id,
             queue_status="NEW",
             priority="NORMAL",
         )
@@ -101,8 +101,8 @@ def create_charge_from_visit(
     db.refresh(readiness)
 
     return ChargeWorkflowResult(
-        charge_id=charge.id,
-        queue_id=queue.id,
+        charge_id=charge.charge_id,
+        queue_id=queue.queue_id,
         readiness_score=float(readiness.readiness_score),
         readiness_status=readiness.readiness_status,
     )

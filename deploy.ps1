@@ -79,7 +79,7 @@ az account show 1>$null
 
 # ---------- Ensure Container Apps extension ----------
 Write-Host "Ensuring Azure Container Apps extension..." -ForegroundColor Cyan
-az extension add --name containerapp --upgrade 1>$null 2>$null
+az extension add --name containerapp --upgrade --allow-preview true
 
 # ---------- Ensure Container Apps Environment ----------
 Write-Host "`nChecking Container Apps environment..." -ForegroundColor Cyan

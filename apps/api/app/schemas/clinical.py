@@ -29,25 +29,25 @@ class VisitCreate(BaseModel):
 
 
 class ProviderSummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
+    id: UUID = Field(validation_alias="provider_id")
     full_name: str
 
 
 class PatientSummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
+    id: UUID = Field(validation_alias="patient_id")
     mrn: str | None
     first_name: str | None
     last_name: str | None
 
 
 class VisitSummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
+    id: UUID = Field(validation_alias="visit_id")
     tenant_id: UUID
     facility_id: UUID
     patient_id: UUID
@@ -61,9 +61,9 @@ class VisitSummary(BaseModel):
 
 
 class VisitNoteOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
+    id: UUID = Field(validation_alias="note_id")
     visit_id: UUID
     tenant_id: UUID
     patient_id: UUID
@@ -83,9 +83,9 @@ class VisitNoteOut(BaseModel):
 
 
 class VisitDiagnosisOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
+    id: UUID = Field(validation_alias="diagnosis_id")
     visit_id: UUID
     tenant_id: UUID
     icd10_code: str
@@ -96,9 +96,9 @@ class VisitDiagnosisOut(BaseModel):
 
 
 class VisitProcedureOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
+    id: UUID = Field(validation_alias="procedure_id")
     visit_id: UUID
     tenant_id: UUID
     cpt_code: str
@@ -111,9 +111,9 @@ class VisitProcedureOut(BaseModel):
 
 
 class ChargeSummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-    id: UUID
+    id: UUID = Field(validation_alias="charge_id")
     charge_status: str
     primary_icd10: str | None
     primary_cpt: str | None

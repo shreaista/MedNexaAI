@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 import app.models  # noqa: F401 — register ORM mappings
-from app.routers import billing_queue, census, charges, facilities, health, notes, patients, visits
+from app.routers import billing_queue, census, charges, debug, facilities, health, notes, patients, visits
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -
 
 
 app.include_router(health.router, prefix="/health", tags=["system"])
+app.include_router(debug.router, prefix="/debug")
 app.include_router(facilities.router)
 app.include_router(census.router)
 app.include_router(patients.router)

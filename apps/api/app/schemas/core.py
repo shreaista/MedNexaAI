@@ -5,32 +5,44 @@ from pydantic import BaseModel, ConfigDict
 
 
 class TenantSummary(BaseModel):
+    """Maps `tenants` row for nested responses."""
+
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID
-    name: str
-    slug: str | None
+    tenant_id: UUID
+    tenant_name: str
+    tenant_code: str
+    status: str
 
 
 class FacilityWithTenantOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    """One row from `facilities` joined to `tenants` (tenant name as `tenant_name`)."""
 
-    id: UUID
+    facility_id: UUID
     tenant_id: UUID
-    code: str
-    name: str
+    tenant_name: str
+    facility_name: str
+    facility_type: str | None
+    address_line1: str | None
+    city: str | None
+    state: str | None
+    zip_code: str | None
     status: str
-    created_at: datetime
-    updated_at: datetime
-    tenant: TenantSummary
 
 
 class FacilitySummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    """Nested facility snippet for patient detail (matches `facilities` columns)."""
 
-    id: UUID
-    code: str
-    name: str
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    facility_id: UUID
+    tenant_id: UUID
+    facility_name: str
+    facility_type: str | None
+    address_line1: str | None
+    city: str | None
+    state: str | None
+    zip_code: str | None
     status: str
 
 

@@ -1,4 +1,4 @@
-"""Clinical tables mapped to `public.*`."""
+"""Clinical tables mapped to `public.*` (explicit PK columns)."""
 
 from __future__ import annotations
 
@@ -15,15 +15,15 @@ from app.db.database import Base
 class Patient(Base):
     __tablename__ = "patients"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
         nullable=False,
     )
     facility_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("facilities.id", ondelete="SET NULL"),
+        ForeignKey("facilities.facility_id", ondelete="SET NULL"),
         nullable=True,
     )
     mrn: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -45,20 +45,20 @@ class Patient(Base):
 class PatientCensus(Base):
     __tablename__ = "patient_census"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    census_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
         nullable=True,
     )
     facility_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("facilities.id", ondelete="CASCADE"),
+        ForeignKey("facilities.facility_id", ondelete="CASCADE"),
         nullable=False,
     )
     patient_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("patients.id", ondelete="CASCADE"),
+        ForeignKey("patients.patient_id", ondelete="CASCADE"),
         nullable=False,
     )
     mrn: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -86,25 +86,25 @@ class PatientCensus(Base):
 class ClinicalVisit(Base):
     __tablename__ = "clinical_visits"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    visit_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
         nullable=False,
     )
     facility_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("facilities.id", ondelete="RESTRICT"),
+        ForeignKey("facilities.facility_id", ondelete="RESTRICT"),
         nullable=False,
     )
     patient_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("patients.id", ondelete="CASCADE"),
+        ForeignKey("patients.patient_id", ondelete="CASCADE"),
         nullable=False,
     )
     provider_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("providers.id", ondelete="RESTRICT"),
+        ForeignKey("providers.provider_id", ondelete="RESTRICT"),
         nullable=False,
     )
     visit_type: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -125,10 +125,10 @@ class ClinicalVisit(Base):
 class NoteTemplate(Base):
     __tablename__ = "note_templates"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    template_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -147,25 +147,25 @@ class NoteTemplate(Base):
 class VisitNote(Base):
     __tablename__ = "visit_notes"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    note_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
         nullable=False,
     )
     visit_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("clinical_visits.id", ondelete="CASCADE"),
+        ForeignKey("clinical_visits.visit_id", ondelete="CASCADE"),
         nullable=False,
     )
     patient_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("patients.id", ondelete="CASCADE"),
+        ForeignKey("patients.patient_id", ondelete="CASCADE"),
         nullable=False,
     )
     provider_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("providers.id", ondelete="RESTRICT"),
+        ForeignKey("providers.provider_id", ondelete="RESTRICT"),
         nullable=False,
     )
     subjective: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -178,7 +178,7 @@ class VisitNote(Base):
     signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     signed_by: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
+        ForeignKey("users.user_id", ondelete="SET NULL"),
         nullable=True,
     )
     ai_review_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -196,15 +196,15 @@ class VisitNote(Base):
 class VisitDiagnosis(Base):
     __tablename__ = "visit_diagnoses"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    diagnosis_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     visit_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("clinical_visits.id", ondelete="CASCADE"),
+        ForeignKey("clinical_visits.visit_id", ondelete="CASCADE"),
         nullable=False,
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
         nullable=False,
     )
     icd10_code: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -219,15 +219,15 @@ class VisitDiagnosis(Base):
 class VisitProcedure(Base):
     __tablename__ = "visit_procedures"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    procedure_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     visit_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("clinical_visits.id", ondelete="CASCADE"),
+        ForeignKey("clinical_visits.visit_id", ondelete="CASCADE"),
         nullable=False,
     )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
         nullable=False,
     )
     cpt_code: Mapped[str] = mapped_column(String(16), nullable=False)

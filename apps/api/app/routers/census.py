@@ -30,7 +30,7 @@ def get_facility_census(
 
     return [
         CensusRowOut(
-            census_id=row.id,
+            census_id=row.census_id,
             patient_id=row.patient_id,
             mrn=row.mrn,
             patient_name=row.patient_name,

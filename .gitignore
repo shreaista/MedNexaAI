@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 venv/
 .env
+apps/api/.env
 
 # Node / Next
 node_modules/
