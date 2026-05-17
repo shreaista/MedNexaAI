@@ -87,9 +87,11 @@ Stable demo identifiers from `database/seed/001_seed_demo_data.sql`:
 | Role | UUID |
 |------|------|
 | Demo tenant | `11111111-1111-1111-1111-111111111111` |
-| Demo provider (`core.users`) | `22222222-2222-2222-2222-222222222222` |
-| Demo patient | `33333333-3333-3333-3333-333333333333` |
-| Demo facility | `44444444-4444-4444-4444-444444444444` |
+| Demo user (`public.users`) | `22222222-2222-2222-2222-222222222222` (used when signing notes explicitly) |
+| Demo patient (`public.patients`) | `33333333-3333-3333-3333-333333333333` |
+| Demo facility (`public.facilities`) | `44444444-4444-4444-4444-444444444444` |
+
+Ensure `provider_id` in `POST /visits`/`POST …/notes` matches a row in **`public.providers`** for the same tenant — it is **not** the same as `users.user_id` unless your seed links them intentionally.
 
 Example flow (bash):
 
@@ -100,31 +102,32 @@ curl "http://127.0.0.1:8000/patients/33333333-3333-3333-3333-333333333333"
 
 VISIT_ID=$(curl -s -X POST "http://127.0.0.1:8000/visits" \
   -H "Content-Type: application/json" \
-  -d '{"tenant_id":"11111111-1111-1111-1111-111111111111","facility_id":"44444444-4444-4444-4444-444444444444","patient_id":"33333333-3333-3333-3333-333333333333","provider_id":"22222222-2222-2222-2222-222222222222","visit_type":"office","specialty":"internal_medicine","chief_complaint":"follow-up"}' \
+  -d '{"tenant_id":"11111111-1111-1111-1111-111111111111","facility_id":"44444444-4444-4444-4444-444444444444","patient_id":"33333333-3333-3333-3333-333333333333","provider_id":"<REPLACE_WITH_providers.provider_id>","visit_type":"office","specialty":"internal_medicine","chief_complaint":"follow-up"}' \
   | jq -r '.id')
 
 curl "http://127.0.0.1:8000/visits/$VISIT_ID"
 
 NOTE_ID=$(curl -s -X POST "http://127.0.0.1:8000/visits/$VISIT_ID/notes" \
   -H "Content-Type: application/json" \
-  -d '{"subjective":"feel well","objective":"vitals stable","assessment":"stable","plan":"recheck","full_note":"SOAP","ai_generated":false}' \
+  -d '{"tenant_id":"11111111-1111-1111-1111-111111111111","patient_id":"33333333-3333-3333-3333-333333333333","provider_id":"<REPLACE_WITH_providers.provider_id>","subjective":"feel well","objective":"vitals stable","assessment":"stable","plan":"recheck","full_note":"SOAP","ai_generated":false}' \
   | jq -r '.id')
 
+# Sign with signing user UUID, OR use {"signer_provider_id":"<same provider_id>"} when providers.user_id is populated.
 curl -X PUT "http://127.0.0.1:8000/notes/$NOTE_ID/sign" \
   -H "Content-Type: application/json" \
   -d '{"signed_by":"22222222-2222-2222-2222-222222222222"}'
 
-DX_ID=$(curl -s -X POST "http://127.0.0.1:8000/visits/$VISIT_ID/diagnoses" \
+curl -s -X POST "http://127.0.0.1:8000/visits/$VISIT_ID/diagnoses" \
   -H "Content-Type: application/json" \
-  -d '{"icd10_code":"I10","description":"Essential hypertension","is_primary":true}' | jq -r '.id')
+  -d '{"tenant_id":"11111111-1111-1111-1111-111111111111","icd10_code":"I10","description":"Essential hypertension","is_ai_suggested":false}'
 
-PX_ID=$(curl -s -X POST "http://127.0.0.1:8000/visits/$VISIT_ID/procedures" \
+curl -s -X POST "http://127.0.0.1:8000/visits/$VISIT_ID/procedures" \
   -H "Content-Type: application/json" \
-  -d '{"cpt_code":"99213","description":"Office visit, level 3"}' | jq -r '.id')
+  -d '{"tenant_id":"11111111-1111-1111-1111-111111111111","cpt_code":"99213","description":"Office visit, level 3","units":"1"}'
 
 curl -s -X POST "http://127.0.0.1:8000/visits/$VISIT_ID/charges" \
   -H "Content-Type: application/json" \
-  -d "{\"diagnosis_id\":\"$DX_ID\",\"procedure_id\":\"$PX_ID\",\"amount_cents\":15000}"
+  -d '{}'
 
 curl "http://127.0.0.1:8000/billing-queue"
 ```
@@ -142,7 +145,20 @@ npm run dev
 
 Open http://localhost:3000 .
 
+### Phase 1 workflow test (UI)
+
+1. Open **Dashboard**.
+2. Open **Facilities** and pick a census for an active facility.
+3. Choose **Open chart** next to any census row — this attaches `facilityId` to `/patients/...`.
+4. On **Patient chart**, confirm payer, admission date, and facility attribution, then **Start new visit**.
+5. Populate **Visit shell**, SOAP, ICD/CPT, and **Submit documentation & charge** (requires `NEXT_PUBLIC_PROVIDER_ID`; see `apps/web/.env.example`).
+6. On **Billing queue**, confirm `GET /billing-queue` renders the newest row plus the transient **Charge captured** banner (`?charged=1` redirect).
+
+Also keep Swagger (`/docs`) handy for diagnosing payload mismatches versus `apps/api/app/schemas`.
+
 ## Operational notes
+
+- Set **`CORS_ALLOW_ORIGINS`** in `apps/api` (comma-separated) so browser-based Next.js callers at your staging domain can invoke the deployed API alongside local `localhost:3000` defaults.
 
 - Keep secrets out of Git; populate `.env` / `.env.local` from `.env.example` files only.
 - The `apps/api/app/ai` package is reserved for adapters, retrieval, orchestration — no third-party inference is wired in this scaffold.

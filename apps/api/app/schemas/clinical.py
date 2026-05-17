@@ -1,21 +1,73 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any, Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.core import FacilitySummary
+
+def _patient_display_name(
+    first: str | None,
+    last: str | None,
+    mrn: str | None,
+    patient_id: UUID,
+) -> str:
+    label = " ".join(p for p in [first or "", last or ""] if p).strip()
+    return label or (mrn or str(patient_id))
+
+
+# --- GET /patients/{patient_id} -------------------------------------------------
 
 
 class PatientDetailOut(BaseModel):
     patient_id: UUID
     tenant_id: UUID
+    facility_id: UUID | None = None
+    facility_name: str | None = None
     mrn: str | None
     first_name: str | None
     last_name: str | None
+    patient_name: str
     date_of_birth: date | None
     gender: str | None
-    facility: FacilitySummary | None
+    payer_name: str | None = None
+    insurance_member_id: str | None = None
+    status: str | None = None
+    admission_date: date | None = None
+    discharge_date: date | None = None
+
+    @classmethod
+    def from_patient_and_facility(
+        cls,
+        *,
+        patient: Any,
+        facility_name: str | None,
+    ) -> Self:
+        return cls(
+            patient_id=patient.patient_id,
+            tenant_id=patient.tenant_id,
+            facility_id=patient.facility_id,
+            facility_name=facility_name,
+            mrn=patient.mrn,
+            first_name=patient.first_name,
+            last_name=patient.last_name,
+            patient_name=_patient_display_name(
+                patient.first_name,
+                patient.last_name,
+                patient.mrn,
+                patient.patient_id,
+            ),
+            date_of_birth=patient.date_of_birth,
+            gender=patient.gender,
+            payer_name=patient.payer_name,
+            insurance_member_id=patient.insurance_member_id,
+            status=patient.status,
+            admission_date=patient.admission_date,
+            discharge_date=patient.discharge_date,
+        )
+
+
+# --- POST /visits ---------------------------------------------------------------
 
 
 class VisitCreate(BaseModel):
@@ -26,28 +78,24 @@ class VisitCreate(BaseModel):
     visit_type: str = Field(min_length=1, max_length=64)
     specialty: str = Field(min_length=1, max_length=128)
     chief_complaint: str | None = Field(default=None, max_length=4000)
+    visit_date: date | None = Field(
+        default=None,
+        description="Optional; not persisted until a dedicated column exists — use visit.visit_date from GET (derived from created_at).",
+    )
 
 
-class ProviderSummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    id: UUID = Field(validation_alias="provider_id")
-    full_name: str
-
-
-class PatientSummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    id: UUID = Field(validation_alias="patient_id")
-    mrn: str | None
-    first_name: str | None
-    last_name: str | None
+class VisitCreatedOut(BaseModel):
+    visit_id: UUID
+    visit_status: str
+    patient_id: UUID
+    provider_id: UUID
 
 
-class VisitSummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+# --- GET /visits/{visit_id} -----------------------------------------------------
 
-    id: UUID = Field(validation_alias="visit_id")
+
+class VisitBlockOut(BaseModel):
+    visit_id: UUID
     tenant_id: UUID
     facility_id: UUID
     patient_id: UUID
@@ -55,15 +103,84 @@ class VisitSummary(BaseModel):
     visit_type: str
     specialty: str
     chief_complaint: str | None
-    status: str | None
+    visit_status: str
+    visit_date: date
     created_at: datetime
     updated_at: datetime
 
+    @classmethod
+    def from_orm_visit(cls, v: Any) -> Self:
+        vd = v.created_at.date() if getattr(v, "created_at", None) else date.today()
+        return cls(
+            visit_id=v.visit_id,
+            tenant_id=v.tenant_id,
+            facility_id=v.facility_id,
+            patient_id=v.patient_id,
+            provider_id=v.provider_id,
+            visit_type=v.visit_type,
+            specialty=v.specialty,
+            chief_complaint=v.chief_complaint,
+            visit_status=(v.status or "UNKNOWN").strip(),
+            visit_date=vd,
+            created_at=v.created_at,
+            updated_at=v.updated_at,
+        )
+
+
+VisitSummary = VisitBlockOut
+
+
+class PatientBlockOut(BaseModel):
+    patient_id: UUID
+    tenant_id: UUID
+    mrn: str | None
+    first_name: str | None
+    last_name: str | None
+    patient_name: str
+    date_of_birth: date | None
+    gender: str | None
+
+    @classmethod
+    def from_patient(cls, p: Any) -> Self:
+        return cls(
+            patient_id=p.patient_id,
+            tenant_id=p.tenant_id,
+            mrn=p.mrn,
+            first_name=p.first_name,
+            last_name=p.last_name,
+            patient_name=_patient_display_name(p.first_name, p.last_name, p.mrn, p.patient_id),
+            date_of_birth=p.date_of_birth,
+            gender=p.gender,
+        )
+
+
+class ProviderBlockOut(BaseModel):
+    provider_id: UUID
+    tenant_id: UUID
+    full_name: str
+    user_id: UUID | None = None
+
+
+class ProviderSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    provider_id: UUID
+    full_name: str
+
+
+class PatientSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    patient_id: UUID
+    mrn: str | None
+    first_name: str | None
+    last_name: str | None
+
 
 class VisitNoteOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
-    id: UUID = Field(validation_alias="note_id")
+    note_id: UUID
     visit_id: UUID
     tenant_id: UUID
     patient_id: UUID
@@ -83,9 +200,9 @@ class VisitNoteOut(BaseModel):
 
 
 class VisitDiagnosisOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
-    id: UUID = Field(validation_alias="diagnosis_id")
+    diagnosis_id: UUID
     visit_id: UUID
     tenant_id: UUID
     icd10_code: str
@@ -96,9 +213,9 @@ class VisitDiagnosisOut(BaseModel):
 
 
 class VisitProcedureOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
-    id: UUID = Field(validation_alias="procedure_id")
+    procedure_id: UUID
     visit_id: UUID
     tenant_id: UUID
     cpt_code: str
@@ -111,23 +228,53 @@ class VisitProcedureOut(BaseModel):
 
 
 class ChargeSummary(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
-    id: UUID = Field(validation_alias="charge_id")
+    charge_id: UUID
     charge_status: str
     primary_icd10: str | None
     primary_cpt: str | None
     amount_cents: int
 
 
+class ChargeDetailOut(BaseModel):
+    charge_id: UUID
+    tenant_id: UUID
+    visit_id: UUID
+    patient_id: UUID
+    facility_id: UUID | None
+    provider_id: UUID | None
+    charge_status: str
+    primary_icd10: str | None
+    primary_cpt: str | None
+    amount_cents: int
+    total_units: float | None = None
+    documentation_support_status: str
+
+
+class ClaimReadinessBlockOut(BaseModel):
+    readiness_id: UUID
+    charge_id: UUID
+    readiness_score: float
+    readiness_status: str
+    missing_note_flag: bool
+    missing_diagnosis_flag: bool
+    missing_cpt_flag: bool
+    recommendation: str
+
+
 class VisitDetailOut(BaseModel):
-    visit: VisitSummary
-    patient: PatientSummary
-    provider: ProviderSummary
+    visit: VisitBlockOut
+    patient: PatientBlockOut
+    provider: ProviderBlockOut
     note: VisitNoteOut | None
     diagnoses: list[VisitDiagnosisOut]
     procedures: list[VisitProcedureOut]
-    charge: ChargeSummary | None
+    charge: ChargeDetailOut | None
+    claim_readiness: ClaimReadinessBlockOut | None
+
+
+# --- POST /visits/{visit_id}/notes ---------------------------------------------
 
 
 class VisitNoteCreate(BaseModel):
@@ -142,8 +289,25 @@ class VisitNoteCreate(BaseModel):
     ai_generated: bool = False
 
 
+class NoteCreatedOut(BaseModel):
+    note_id: UUID
+    note_status: str
+
+
+# --- PUT /notes/{note_id}/sign -------------------------------------------------
+
+
 class NoteSignBody(BaseModel):
     signed_by: UUID
+
+
+class NoteSignedOut(BaseModel):
+    note_id: UUID
+    note_status: str
+    signed_at: datetime
+
+
+# --- POST diagnoses / procedures ----------------------------------------------
 
 
 class DiagnosisCreate(BaseModel):
@@ -154,6 +318,10 @@ class DiagnosisCreate(BaseModel):
     confidence_score: Decimal | None = Field(default=None, ge=0, le=100)
 
 
+class DiagnosisCreatedOut(BaseModel):
+    diagnosis_id: UUID
+
+
 class ProcedureCreate(BaseModel):
     tenant_id: UUID
     cpt_code: str = Field(min_length=1, max_length=16)
@@ -162,3 +330,7 @@ class ProcedureCreate(BaseModel):
     units: Decimal = Field(default=Decimal("1"), gt=0)
     is_ai_suggested: bool = False
     confidence_score: Decimal | None = Field(default=None, ge=0, le=100)
+
+
+class ProcedureCreatedOut(BaseModel):
+    procedure_id: UUID

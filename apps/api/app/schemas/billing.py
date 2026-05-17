@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -9,14 +10,19 @@ class ChargeWorkflowResult(BaseModel):
     queue_id: UUID
     readiness_score: float
     readiness_status: str
+    recommendation: str
+    total_units: float | None = None
+    documentation_support_status: str
 
 
 class BillingQueueListItem(BaseModel):
     queue_id: UUID
     queue_status: str
     priority: str
+    queue_reason: str
     charge_id: UUID
     charge_status: str
+    patient_id: UUID
     patient_name: str
     mrn: str | None
     provider_name: str
@@ -24,6 +30,7 @@ class BillingQueueListItem(BaseModel):
     primary_cpt: str | None
     readiness_score: Decimal
     readiness_status: str
+    created_at: datetime
 
 
 class ClaimReadinessFlagsOut(BaseModel):

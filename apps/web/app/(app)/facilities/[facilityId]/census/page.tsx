@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AppBreadcrumbs } from "@/components/layout/breadcrumbs";
 import { getFacilityCensus } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,11 +10,12 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-function FlagCell({ value }: { value: boolean }) {
+function FlagCell({ value, label }: { value: boolean; label: string }) {
   return (
-    <Badge variant={value ? "warning" : "success"}>
-      {value ? "Yes" : "No"}
-    </Badge>
+    <div className="flex flex-col gap-0.5">
+      <span className="sr-only">{label}</span>
+      <Badge variant={value ? "warning" : "success"}>{value ? "Yes" : "No"}</Badge>
+    </div>
   );
 }
 
@@ -39,6 +41,13 @@ export default async function CensusPage({
 
   return (
     <div className="mx-auto max-w-[1100px] space-y-6">
+      <AppBreadcrumbs
+        items={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Facilities", href: "/facilities" },
+          { label: "Census" },
+        ]}
+      />
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
@@ -73,11 +82,11 @@ export default async function CensusPage({
           <CardTitle>Inpatient census</CardTitle>
           <CardDescription>
             {rows.length} patient{rows.length === 1 ? "" : "s"} ·{" "}
-            <code className="text-xs">GET /facilities/n…/census</code>
+            <code className="text-xs">GET /facilities/…/census</code>
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
-          <table className="w-full min-w-[960px] text-left text-sm">
+          <table className="w-full min-w-[900px] text-left text-sm">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50/80">
                 <th className="px-4 py-3 font-medium text-zinc-600">MRN</th>
@@ -86,10 +95,9 @@ export default async function CensusPage({
                 <th className="px-4 py-3 font-medium text-zinc-600">Gender</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">Payer</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">Room</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Care</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Due</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Unsigned</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Charges</th>
+                <th className="px-4 py-3 font-medium text-zinc-600">Care level</th>
+                <th className="px-4 py-3 font-medium text-zinc-600">Visits due</th>
+                <th className="px-4 py-3 font-medium text-zinc-600">Missing charge</th>
                 <th className="px-4 py-3 font-medium text-zinc-600" />
               </tr>
             </thead>
@@ -97,7 +105,7 @@ export default async function CensusPage({
               {rows.length === 0 && !errorMessage ? (
                 <tr>
                   <td
-                    colSpan={11}
+                    colSpan={10}
                     className="px-4 py-12 text-center text-sm text-zinc-500"
                   >
                     No census rows for this facility.
@@ -124,17 +132,14 @@ export default async function CensusPage({
                     {r.care_level ?? "—"}
                   </td>
                   <td className="px-4 py-3">
-                    <FlagCell value={r.visit_due_flag} />
+                    <FlagCell value={r.visit_due_flag} label="Visit due" />
                   </td>
                   <td className="px-4 py-3">
-                    <FlagCell value={r.unsigned_note_flag} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <FlagCell value={r.missing_charge_flag} />
+                    <FlagCell value={r.missing_charge_flag} label="Missing charge" />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
-                      href={`/patients/${r.patient_id}`}
+                      href={`/patients/${r.patient_id}?facilityId=${encodeURIComponent(facilityId)}`}
                       className={cn(
                         buttonVariants({ variant: "outline", size: "sm" }),
                         "text-xs",

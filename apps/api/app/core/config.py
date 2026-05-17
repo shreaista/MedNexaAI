@@ -23,6 +23,11 @@ class Settings(BaseSettings):
 
     database_url: str = Field(..., alias="DATABASE_URL")
     app_env: str = Field(default="dev", alias="APP_ENV")
+    cors_allow_origins: str = Field(
+        default="http://localhost:3000,http://127.0.0.1:3000",
+        alias="CORS_ALLOW_ORIGINS",
+        description="Comma-separated origins for browser CORS (no spaces after commas optional).",
+    )
 
 
 @lru_cache

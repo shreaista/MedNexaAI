@@ -65,3 +65,18 @@ class CensusRowOut(BaseModel):
     unsigned_note_flag: bool
     missing_charge_flag: bool
     status: str | None
+
+
+class ProviderListItem(BaseModel):
+    """Active provider directory row (joined to users for display name)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    provider_id: UUID
+    tenant_id: UUID
+    user_id: UUID | None
+    full_name: str
+    npi: str | None
+    specialty: str | None
+    provider_type: str | None
+    status: str

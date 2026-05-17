@@ -8,7 +8,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 import app.models  # noqa: F401 — register ORM mappings
-from app.routers import billing_queue, census, charges, debug, facilities, health, notes, patients, visits
+from app.core.config import get_settings
+from app.routers import billing_queue, census, charges, debug, facilities, health, notes, patients, providers, visits
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +20,16 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+_settings = get_settings()
+_cors_list = [
+    origin.strip()
+    for origin in _settings.cors_allow_origins.split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=_cors_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,6 +52,7 @@ app.include_router(debug.router, prefix="/debug")
 app.include_router(facilities.router)
 app.include_router(census.router)
 app.include_router(patients.router)
+app.include_router(providers.router)
 app.include_router(visits.router)
 app.include_router(notes.router)
 app.include_router(charges.router)

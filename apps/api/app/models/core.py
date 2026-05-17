@@ -61,6 +61,7 @@ class User(Base):
         ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
         nullable=False,
     )
+    full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -133,6 +134,10 @@ class Provider(Base):
         ForeignKey("users.user_id", ondelete="SET NULL"),
         nullable=True,
     )
+    npi: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    specialty: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    provider_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE")
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
