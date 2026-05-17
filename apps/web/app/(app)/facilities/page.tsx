@@ -1,8 +1,7 @@
 import Link from "next/link";
 
-import {
-  getFacilities,
-} from "@/lib/api";
+import { AppBreadcrumbs } from "@/components/layout/breadcrumbs";
+import { getFacilities } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -22,6 +21,12 @@ export default async function FacilitiesPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      <AppBreadcrumbs
+        items={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Facilities" },
+        ]}
+      />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
           Facilities
@@ -98,9 +103,9 @@ export default async function FacilitiesPage() {
                   <td className="px-5 py-4 text-right">
                     <Link
                       href={`/facilities/${f.facility_id}/census`}
-                      className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-xs")}
+                      className={cn(buttonVariants({ variant: "default", size: "sm" }), "bg-emerald-700 text-xs hover:bg-emerald-800")}
                     >
-                      View census
+                      View Census
                     </Link>
                   </td>
                 </tr>

@@ -1,4 +1,4 @@
-"""Provider directory — active providers with user display names."""
+"""Provider directory — active providers with display name from users."""
 
 from uuid import UUID
 
@@ -21,23 +21,23 @@ def list_providers(
     ),
     db: Session = Depends(get_db),
 ) -> list[ProviderListItem]:
-    """List active providers; `full_name` prefers `users.full_name`, else `providers.full_name`."""
-    display_name = func.coalesce(User.full_name, Provider.full_name)
+    """List active providers joined to users; `full_name` is `users.full_name` (see join on user_id)."""
     stmt = (
         select(
             Provider.provider_id,
             Provider.tenant_id,
             Provider.user_id,
-            display_name.label("full_name"),
+            User.full_name.label("full_name"),
             Provider.npi,
             Provider.specialty,
             Provider.provider_type,
             Provider.status,
         )
         .select_from(Provider)
-        .outerjoin(User, Provider.user_id == User.user_id)
+        .join(User, Provider.user_id == User.user_id)
         .where(func.upper(Provider.status) == "ACTIVE")
-        .order_by(display_name.asc())
+        .where(User.full_name.isnot(None))
+        .order_by(User.full_name.asc())
     )
     if tenant_id is not None:
         stmt = stmt.where(Provider.tenant_id == tenant_id)

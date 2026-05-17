@@ -90,14 +90,14 @@ export default async function CensusPage({
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50/80">
                 <th className="px-4 py-3 font-medium text-zinc-600">MRN</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Patient</th>
+                <th className="px-4 py-3 font-medium text-zinc-600">Patient Name</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">DOB</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">Gender</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">Payer</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">Room</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Care level</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Visits due</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Missing charge</th>
+                <th className="px-4 py-3 font-medium text-zinc-600">Care Level</th>
+                <th className="px-4 py-3 font-medium text-zinc-600">Visit Due</th>
+                <th className="px-4 py-3 font-medium text-zinc-600">Missing Charge</th>
                 <th className="px-4 py-3 font-medium text-zinc-600" />
               </tr>
             </thead>
@@ -132,10 +132,10 @@ export default async function CensusPage({
                     {r.care_level ?? "—"}
                   </td>
                   <td className="px-4 py-3">
-                    <FlagCell value={r.visit_due_flag} label="Visit due" />
+                    <FlagCell value={r.visit_due_flag} label="Visit Due" />
                   </td>
                   <td className="px-4 py-3">
-                    <FlagCell value={r.missing_charge_flag} label="Missing charge" />
+                    <FlagCell value={r.missing_charge_flag} label="Missing Charge" />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link

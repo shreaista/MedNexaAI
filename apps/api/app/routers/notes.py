@@ -36,6 +36,7 @@ def create_visit_note(
     if provider is None or provider.tenant_id != body.tenant_id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid provider for tenant")
 
+    # Defaults: NOT_REVIEWED for clinician-authored drafts; flagged when AI-assisted.
     ai_review = "PENDING_AI_REVIEW" if body.ai_generated else "NOT_REVIEWED"
 
     note = VisitNote(
@@ -47,7 +48,7 @@ def create_visit_note(
         objective=body.objective,
         assessment=body.assessment,
         plan=body.plan,
-        full_note=body.full_note,
+        full_note=body.full_note if body.full_note is not None else "",
         ai_generated=body.ai_generated,
         note_status="DRAFT",
         ai_review_status=ai_review,

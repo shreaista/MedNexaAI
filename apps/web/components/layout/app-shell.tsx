@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 const nav = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/facilities", label: "Facilities" },
-  { href: "/billing-queue", label: "Billing queue" },
-  { href: "/visits/new", label: "New visit" },
+  { href: "/billing-queue", label: "Billing Queue" },
+  { href: "/visits/new", label: "New Visit" },
 ];
 
 export function AppShell({

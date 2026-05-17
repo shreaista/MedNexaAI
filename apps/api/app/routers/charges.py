@@ -45,6 +45,55 @@ def create_charge_from_visit(
     if visit is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Visit not found")
 
+    existing_charge = db.scalar(
+        select(Charge)
+        .where(Charge.visit_id == visit_id)
+        .order_by(Charge.created_at.desc())
+        .limit(1)
+    )
+    if existing_charge is not None:
+        queue_row = db.scalar(
+            select(BillingQueue).where(BillingQueue.charge_id == existing_charge.charge_id)
+        )
+        readiness_row = db.scalar(
+            select(ClaimReadiness).where(ClaimReadiness.charge_id == existing_charge.charge_id)
+        )
+        if queue_row is None or readiness_row is None:
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Charge exists for this visit but billing_queue or claim_readiness row is missing.",
+            )
+        first_dx_existing = db.scalar(
+            select(VisitDiagnosis)
+            .where(VisitDiagnosis.visit_id == visit_id)
+            .order_by(VisitDiagnosis.created_at.asc())
+            .limit(1)
+        )
+        first_px_existing = db.scalar(
+            select(VisitProcedure)
+            .where(VisitProcedure.visit_id == visit_id)
+            .order_by(VisitProcedure.created_at.asc())
+            .limit(1)
+        )
+        total_u = float(first_px_existing.units) if first_px_existing is not None else None
+        has_any_note = _count_any_notes(db, visit_id) > 0
+        has_signed_note = _count_signed_notes(db, visit_id) > 0
+        ev = evaluate_charge_workflow(
+            has_signed_note=has_signed_note,
+            has_any_note=has_any_note,
+            has_diagnosis=first_dx_existing is not None,
+            has_procedure=first_px_existing is not None,
+        )
+        return ChargeWorkflowResult(
+            charge_id=existing_charge.charge_id,
+            queue_id=queue_row.queue_id,
+            readiness_score=float(readiness_row.readiness_score),
+            readiness_status=readiness_row.readiness_status,
+            recommendation=ev.recommendation,
+            total_units=total_u,
+            documentation_support_status=ev.documentation_support_status,
+        )
+
     first_dx = db.scalar(
         select(VisitDiagnosis)
         .where(VisitDiagnosis.visit_id == visit_id)

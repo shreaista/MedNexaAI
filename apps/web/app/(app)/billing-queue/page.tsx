@@ -41,22 +41,20 @@ export default async function BillingQueuePage({
     loadFailed = true;
   }
 
-  const showEmpty = loadFailed || items.length === 0;
-  const emptyCopy = loadFailed
-    ? "We could not load billing items from the API. Verify connectivity and try again."
-    : "No billing items yet. Submit a visit charge to populate this queue.";
+  const showTable = !loadFailed && items.length > 0;
+  const showEmptyQueue = !loadFailed && items.length === 0;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <AppBreadcrumbs
         items={[
           { label: "Dashboard", href: "/dashboard" },
-          { label: "Billing queue" },
+          { label: "Billing Queue" },
         ]}
       />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
-          Billing queue
+          Billing Queue
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
           Charge readiness and coder workflow ·{" "}
@@ -82,11 +80,39 @@ export default async function BillingQueuePage({
         </Card>
       ) : null}
 
-      {showEmpty ? (
+      {loadFailed ? (
+        <Card className="border-rose-200 bg-rose-50/50">
+          <CardHeader>
+            <CardTitle className="text-lg text-rose-900">Could not load queue</CardTitle>
+            <CardDescription className="text-rose-900/85">
+              Check <code className="text-xs">NEXT_PUBLIC_API_BASE_URL</code>, network, and CORS, then
+              try again.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <Link
+              href="/billing-queue"
+              className="inline-flex rounded-lg bg-rose-700 px-4 py-2.5 text-sm font-medium text-white shadow hover:bg-rose-800"
+            >
+              Retry
+            </Link>
+            <Link
+              href="/facilities"
+              className="inline-flex rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50"
+            >
+              Facilities
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {showEmptyQueue ? (
         <Card className="border-zinc-200">
           <CardHeader>
             <CardTitle className="text-lg">Queue</CardTitle>
-            <CardDescription>{emptyCopy}</CardDescription>
+            <CardDescription>
+              No billing items yet. Submit a visit charge to populate this queue.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-3">
@@ -99,7 +125,9 @@ export default async function BillingQueuePage({
             </div>
           </CardContent>
         </Card>
-      ) : (
+      ) : null}
+
+      {showTable ? (
         <Card>
           <CardHeader>
             <CardTitle>Ready for billing</CardTitle>
@@ -168,7 +196,7 @@ export default async function BillingQueuePage({
             </table>
           </CardContent>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }

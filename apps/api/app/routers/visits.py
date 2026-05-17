@@ -1,3 +1,4 @@
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -224,12 +225,16 @@ def add_visit_diagnosis(
     if body.tenant_id != visit.tenant_id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Tenant mismatch for visit")
 
-    conf = float(body.confidence_score) if body.confidence_score is not None else None
+    icd10 = body.icd10_code.strip()
+    if not icd10:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="icd10_code cannot be empty.")
+
+    conf: Decimal | None = body.confidence_score if body.confidence_score is not None else None
 
     row = VisitDiagnosis(
         visit_id=visit_id,
         tenant_id=body.tenant_id,
-        icd10_code=body.icd10_code.strip(),
+        icd10_code=icd10,
         description=body.description.strip() if body.description else None,
         is_ai_suggested=body.is_ai_suggested,
         confidence_score=conf,
@@ -257,17 +262,21 @@ def add_visit_procedure(
     if body.tenant_id != visit.tenant_id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Tenant mismatch for visit")
 
-    conf = float(body.confidence_score) if body.confidence_score is not None else None
+    cpt = body.cpt_code.strip()
+    if not cpt:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="cpt_code cannot be empty.")
+
+    conf_px: Decimal | None = body.confidence_score if body.confidence_score is not None else None
 
     row = VisitProcedure(
         visit_id=visit_id,
         tenant_id=body.tenant_id,
-        cpt_code=body.cpt_code.strip(),
+        cpt_code=cpt,
         description=body.description.strip() if body.description else None,
         modifier=body.modifier.strip() if body.modifier else None,
-        units=float(body.units),
+        units=body.units,
         is_ai_suggested=body.is_ai_suggested,
-        confidence_score=conf,
+        confidence_score=conf_px,
     )
     db.add(row)
     db.commit()

@@ -122,6 +122,12 @@ export default async function PatientPage({
                 <dd className="mt-1 text-sm text-zinc-900">{patient.payer_name ?? "—"}</dd>
               </div>
               <div>
+                <dt className="text-xs font-medium uppercase text-zinc-400">Insurance member ID</dt>
+                <dd className="mt-1 font-mono text-sm text-zinc-900">
+                  {patient.insurance_member_id ?? "—"}
+                </dd>
+              </div>
+              <div>
                 <dt className="text-xs font-medium uppercase text-zinc-400">Facility</dt>
                 <dd className="mt-1 text-sm font-medium text-zinc-900">
                   {patient.facility_name ?? "—"}
@@ -151,7 +157,7 @@ export default async function PatientPage({
               "h-fit w-fit shrink-0 bg-emerald-700 shadow-sm hover:bg-emerald-800",
             )}
           >
-            Start new visit
+            Start New Visit
           </Link>
         ) : (
           <div className="max-w-xs shrink-0 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-950">
@@ -161,10 +167,10 @@ export default async function PatientPage({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <PlaceholderSection title="AI patient summary">
+        <PlaceholderSection title="AI Patient Summary">
           <p>MedNexa AI will summarize longitudinal context here.</p>
         </PlaceholderSection>
-        <PlaceholderSection title="Recent visits" />
+        <PlaceholderSection title="Recent Visits" />
         <PlaceholderSection title="Diagnoses" />
         <PlaceholderSection title="Charges" />
       </div>
@@ -172,6 +178,9 @@ export default async function PatientPage({
       <div className="flex flex-wrap gap-4 border-t border-zinc-100 pt-4">
         <Link href="/facilities" className="text-sm font-medium text-emerald-800 hover:underline">
           ← Facilities
+        </Link>
+        <Link href="/billing-queue" className="text-sm font-medium text-emerald-800 hover:underline">
+          Billing Queue
         </Link>
         {facilityForVisit ? (
           <Link
