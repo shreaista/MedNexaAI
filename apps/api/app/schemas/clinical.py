@@ -80,7 +80,7 @@ class VisitCreate(BaseModel):
     chief_complaint: str | None = Field(default=None, max_length=4000)
     visit_date: date | None = Field(
         default=None,
-        description="Optional; not persisted until a dedicated column exists — use visit.visit_date from GET (derived from created_at).",
+        description="Encounters visit_date column; defaults to today on the server when omitted.",
     )
 
 
@@ -110,7 +110,9 @@ class VisitBlockOut(BaseModel):
 
     @classmethod
     def from_orm_visit(cls, v: Any) -> Self:
-        vd = v.created_at.date() if getattr(v, "created_at", None) else date.today()
+        vd = v.visit_date if getattr(v, "visit_date", None) is not None else (
+            v.created_at.date() if getattr(v, "created_at", None) else date.today()
+        )
         return cls(
             visit_id=v.visit_id,
             tenant_id=v.tenant_id,
@@ -120,7 +122,7 @@ class VisitBlockOut(BaseModel):
             visit_type=v.visit_type,
             specialty=v.specialty,
             chief_complaint=v.chief_complaint,
-            visit_status=(v.status or "UNKNOWN").strip(),
+            visit_status=(v.visit_status or "UNKNOWN").strip(),
             visit_date=vd,
             created_at=v.created_at,
             updated_at=v.updated_at,
@@ -234,7 +236,7 @@ class ChargeSummary(BaseModel):
     charge_status: str
     primary_icd10: str | None
     primary_cpt: str | None
-    amount_cents: int
+    charge_amount: float
 
 
 class ChargeDetailOut(BaseModel):
@@ -247,7 +249,7 @@ class ChargeDetailOut(BaseModel):
     charge_status: str
     primary_icd10: str | None
     primary_cpt: str | None
-    amount_cents: int
+    charge_amount: float
     total_units: float | None = None
     documentation_support_status: str
 

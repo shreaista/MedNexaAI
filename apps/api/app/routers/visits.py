@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -14,7 +15,7 @@ from app.models.clinical import (
     VisitNote,
     VisitProcedure,
 )
-from app.models.core import Facility, Provider
+from app.models.core import Facility, Provider, User
 from app.schemas.clinical import (
     ChargeDetailOut,
     ClaimReadinessBlockOut,
@@ -77,6 +78,8 @@ def create_visit(body: VisitCreate, db: Session = Depends(get_db)) -> VisitCreat
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Unknown provider_id.")
     if provider.tenant_id != body.tenant_id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Provider is not part of the specified tenant.")
+    if (provider.status or "").strip().upper() != "ACTIVE":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Provider is not active.")
 
     if patient.facility_id is not None and patient.facility_id != body.facility_id:
         raise HTTPException(
@@ -89,10 +92,11 @@ def create_visit(body: VisitCreate, db: Session = Depends(get_db)) -> VisitCreat
         facility_id=body.facility_id,
         patient_id=body.patient_id,
         provider_id=body.provider_id,
+        visit_date=body.visit_date or date.today(),
         visit_type=body.visit_type,
         specialty=body.specialty,
         chief_complaint=body.chief_complaint,
-        status="DRAFT",
+        visit_status="DRAFT",
     )
     db.add(visit)
     db.commit()
@@ -100,7 +104,7 @@ def create_visit(body: VisitCreate, db: Session = Depends(get_db)) -> VisitCreat
 
     return VisitCreatedOut(
         visit_id=visit.visit_id,
-        visit_status=visit.status or "DRAFT",
+        visit_status=visit.visit_status or "DRAFT",
         patient_id=visit.patient_id,
         provider_id=visit.provider_id,
     )
@@ -116,6 +120,13 @@ def get_visit(visit_id: UUID, db: Session = Depends(get_db)) -> VisitDetailOut:
     provider = db.get(Provider, visit.provider_id)
     if patient is None or provider is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Related patient or provider missing")
+
+    linked_user = db.get(User, provider.user_id) if provider.user_id is not None else None
+    provider_display_name = (
+        (linked_user.full_name or "").strip() or "Unknown provider"
+        if linked_user is not None
+        else "Unknown provider"
+    )
 
     note = db.scalar(
         select(VisitNote)
@@ -163,19 +174,21 @@ def get_visit(visit_id: UUID, db: Session = Depends(get_db)) -> VisitDetailOut:
 
     charge_out: ChargeDetailOut | None = None
     if charge is not None:
+        doc_for_charge = charge.documentation_support_status or doc_status
+        tu_out = float(charge.total_units) if charge.total_units is not None else total_u
         charge_out = ChargeDetailOut(
             charge_id=charge.charge_id,
             tenant_id=charge.tenant_id,
             visit_id=charge.visit_id,
             patient_id=charge.patient_id,
-            facility_id=charge.facility_id,
+            facility_id=visit.facility_id,
             provider_id=charge.provider_id,
             charge_status=charge.charge_status,
             primary_icd10=charge.primary_icd10,
             primary_cpt=charge.primary_cpt,
-            amount_cents=charge.amount_cents,
-            total_units=total_u,
-            documentation_support_status=doc_status,
+            charge_amount=float(charge.charge_amount),
+            total_units=tu_out,
+            documentation_support_status=doc_for_charge,
         )
 
     cr_out: ClaimReadinessBlockOut | None = None
@@ -188,7 +201,7 @@ def get_visit(visit_id: UUID, db: Session = Depends(get_db)) -> VisitDetailOut:
             missing_note_flag=readiness_row.missing_note_flag,
             missing_diagnosis_flag=readiness_row.missing_diagnosis_flag,
             missing_cpt_flag=readiness_row.missing_cpt_flag,
-            recommendation=ev.recommendation,
+            recommendation=readiness_row.recommendation or ev.recommendation or "",
         )
 
     return VisitDetailOut(
@@ -197,7 +210,7 @@ def get_visit(visit_id: UUID, db: Session = Depends(get_db)) -> VisitDetailOut:
         provider=ProviderBlockOut(
             provider_id=provider.provider_id,
             tenant_id=provider.tenant_id,
-            full_name=provider.full_name,
+            full_name=provider_display_name,
             user_id=provider.user_id,
         ),
         note=VisitNoteOut.model_validate(note) if note else None,

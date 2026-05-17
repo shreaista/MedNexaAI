@@ -114,10 +114,11 @@ class ClinicalVisit(Base):
         ForeignKey("providers.provider_id", ondelete="RESTRICT"),
         nullable=False,
     )
+    visit_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     visit_type: Mapped[str] = mapped_column(String(64), nullable=False)
     specialty: Mapped[str] = mapped_column(String(128), nullable=False)
     chief_complaint: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str | None] = mapped_column(String(32), nullable=True, default="OPEN")
+    visit_status: Mapped[str] = mapped_column(String(32), nullable=False, default="DRAFT")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

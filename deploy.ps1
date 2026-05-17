@@ -27,6 +27,9 @@ $WEB_APP_NAME = "mednexa-web-dev"
 $API_IMAGE_NAME = "mednexa-api"
 $WEB_IMAGE_NAME = "mednexa-web"
 
+# Next.js public env: baked at web image build (sign note) + set on Container App at runtime
+$SIGNING_USER_ID = "7901b613-08de-466b-8a50-e85c866bcfe6"
+
 # ---------- PostgreSQL ----------
 $PG_HOST = "pg-mednexa-ai-dev.postgres.database.azure.com"
 $PG_DB = "mednexa"
@@ -183,6 +186,7 @@ if (-not $ApiOnly) {
         --image "${WEB_IMAGE_NAME}:$TAG" `
         --file "apps/web/Dockerfile" `
         --build-arg "NEXT_PUBLIC_API_BASE_URL=$API_URL" `
+        --build-arg "NEXT_PUBLIC_SIGNING_USER_ID=$SIGNING_USER_ID" `
         "apps/web"
 }
 
@@ -210,7 +214,7 @@ if (-not $ApiOnly) {
             --registry-server $ACR_LOGIN_SERVER `
             --registry-username $ACR_USER `
             --registry-password $ACR_PASS `
-            --env-vars "NEXT_PUBLIC_API_BASE_URL=$API_URL" `
+            --env-vars "NEXT_PUBLIC_API_BASE_URL=$API_URL" "NEXT_PUBLIC_SIGNING_USER_ID=$SIGNING_USER_ID" `
             --cpu 0.5 `
             --memory 1.0Gi `
             --min-replicas 1 `
@@ -222,7 +226,7 @@ if (-not $ApiOnly) {
             --name $WEB_APP_NAME `
             --resource-group $RG `
             --image $WEB_IMAGE `
-            --set-env-vars "NEXT_PUBLIC_API_BASE_URL=$API_URL"
+            --set-env-vars "NEXT_PUBLIC_API_BASE_URL=$API_URL" "NEXT_PUBLIC_SIGNING_USER_ID=$SIGNING_USER_ID"
     }
 }
 

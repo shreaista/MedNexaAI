@@ -21,6 +21,8 @@ app = FastAPI(
 )
 
 _settings = get_settings()
+# Browser CORS: defaults include local Next.js + Azure Container Apps web URL.
+# Override via env CORS_ORIGINS (comma-separated) or legacy CORS_ALLOW_ORIGINS — see app.core.config.Settings.
 _cors_list = [
     origin.strip()
     for origin in _settings.cors_allow_origins.split(",")

@@ -6,12 +6,6 @@
 const DEMO_FACILITY_ID =
   process.env.NEXT_PUBLIC_DEMO_FACILITY_ID ?? "";
 
-/** Fallback when GET /providers returns no rows (optional). */
-export function getDefaultProviderId(): string | undefined {
-  const v = process.env.NEXT_PUBLIC_PROVIDER_ID?.trim();
-  return v || undefined;
-}
-
 /** Required for PUT /notes/{id}/sign (`signed_by` → users.user_id). */
 export function getDefaultSigningUserId(): string | undefined {
   const v = process.env.NEXT_PUBLIC_SIGNING_USER_ID?.trim();
@@ -55,13 +49,14 @@ function formatDetailFromBody(data: unknown): string | null {
   return JSON.stringify(detail);
 }
 
-async function parseJson<T>(res: Response): Promise<T> {
+/** Parse HTTP response body as JSON; throw with API `detail` when not OK. */
+async function parseJsonFromResponse(res: Response): Promise<unknown> {
   const text = await res.text();
   if (!text) {
     if (!res.ok) {
       throw new Error(res.statusText || `Request failed (${res.status})`);
     }
-    return undefined as T;
+    return undefined;
   }
   let data: unknown;
   try {
@@ -72,6 +67,11 @@ async function parseJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
     throw new Error(formatDetailFromBody(data) ?? res.statusText ?? `Request failed (${res.status})`);
   }
+  return data;
+}
+
+async function parseJson<T>(res: Response): Promise<T> {
+  const data = await parseJsonFromResponse(res);
   return data as T;
 }
 
@@ -195,6 +195,7 @@ export type ChargeWorkflowResult = {
   recommendation: string;
   total_units: number | null;
   documentation_support_status: string;
+  message?: string | null;
 };
 
 export type CreateVisitPayload = {
@@ -298,9 +299,43 @@ export async function getPatient(patientId: string): Promise<PatientDetail> {
   return get<PatientDetail>(`/patients/${patientId}`);
 }
 
-export async function getProviders(tenantId?: string): Promise<ProviderListItem[]> {
-  const q = tenantId ? `?tenant_id=${encodeURIComponent(tenantId)}` : "";
-  return get<ProviderListItem[]>(`/providers${q}`);
+/** Normalize GET /providers body to a plain array (handles occasional wrapper shapes). */
+function normalizeProvidersList(data: unknown): ProviderListItem[] {
+  if (Array.isArray(data)) {
+    return data as ProviderListItem[];
+  }
+  if (data !== null && typeof data === "object") {
+    const o = data as Record<string, unknown>;
+    if (Array.isArray(o.items)) return o.items as ProviderListItem[];
+    if (Array.isArray(o.providers)) return o.providers as ProviderListItem[];
+    if (Array.isArray(o.data)) return o.data as ProviderListItem[];
+  }
+  return [];
+}
+
+/**
+ * GET `${NEXT_PUBLIC_API_BASE_URL}/providers` and return the JSON array (or normalized list).
+ * Uses an explicit URL so browser requests match the working Azure endpoint.
+ */
+export async function getProviders(): Promise<ProviderListItem[]> {
+  const base = getBaseUrl();
+  if (!base) {
+    throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured.");
+  }
+  const url = `${base}/providers`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Network error";
+    throw new Error(msg);
+  }
+  const data = await parseJsonFromResponse(res);
+  return normalizeProvidersList(data);
 }
 
 export async function getVisit(visitId: string): Promise<unknown> {

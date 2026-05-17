@@ -13,6 +13,7 @@ class ChargeWorkflowResult(BaseModel):
     recommendation: str
     total_units: float | None = None
     documentation_support_status: str
+    message: str | None = None
 
 
 class BillingQueueListItem(BaseModel):

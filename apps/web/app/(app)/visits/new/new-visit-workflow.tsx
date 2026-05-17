@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -17,7 +17,6 @@ import {
   getPatient,
   getProviders,
   getBrowserApiBase,
-  getDefaultProviderId,
   type PatientDetail,
   type ProviderListItem,
 } from "@/lib/api";
@@ -27,10 +26,9 @@ const inputClass =
   "w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20";
 
 function formatProviderOption(p: ProviderListItem): string {
-  const bits = [p.full_name];
-  if (p.specialty?.trim()) bits.push(p.specialty.trim());
-  if (p.npi?.trim()) bits.push(`NPI ${p.npi.trim()}`);
-  return bits.join(" · ");
+  const name = p.full_name?.trim() || "Unknown provider";
+  const spec = p.specialty?.trim();
+  return spec ? `${name} - ${spec}` : name;
 }
 
 function buildFullSoapNote(parts: {
@@ -59,14 +57,12 @@ export function NewVisitWorkflow() {
     patientId && facilityId ? { patientId, facilityId } : null;
 
   const apiOk = !!getBrowserApiBase();
-  const signingUserId = getDefaultSigningUserId();
-  const envProviderFallback = getDefaultProviderId();
 
   const [patient, setPatient] = useState<PatientDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingPatient, setLoadingPatient] = useState(false);
-  const [providers, setProviders] = useState<ProviderListItem[]>([]);
-  const [resolvedProviderId, setResolvedProviderId] = useState<string | null>(null);
+  const [providersRaw, setProvidersRaw] = useState<ProviderListItem[]>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [loadingProviders, setLoadingProviders] = useState(false);
   const [providersError, setProvidersError] = useState<string | null>(null);
 
@@ -91,85 +87,171 @@ export function NewVisitWorkflow() {
   const [stepHint, setStepHint] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
-  const loadPatient = useCallback(async () => {
+  const loadEncounterData = useCallback(async () => {
     if (!patientId || !facilityId) {
       setPatient(null);
-      setLoadingPatient(false);
+      setProvidersRaw([]);
+      setSelectedProviderId(null);
       setLoadError(null);
+      setProvidersError(null);
+      setLoadingPatient(false);
+      setLoadingProviders(false);
       return;
     }
-    setLoadingPatient(true);
-    setLoadError(null);
-    try {
-      if (!getBrowserApiBase()) throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured.");
-      const p = await getPatient(patientId);
-      setPatient(p);
-    } catch (e) {
+    if (!getBrowserApiBase()) {
       setPatient(null);
-      setLoadError(e instanceof Error ? e.message : "Unable to load patient.");
-    } finally {
+      setProvidersRaw([]);
+      setLoadError("NEXT_PUBLIC_API_BASE_URL is not configured.");
+      setProvidersError("NEXT_PUBLIC_API_BASE_URL is not configured.");
       setLoadingPatient(false);
+      setLoadingProviders(false);
+      return;
     }
+
+    setLoadingPatient(true);
+    setLoadingProviders(true);
+    setLoadError(null);
+    setProvidersError(null);
+
+    const [pres, prs] = await Promise.allSettled([getPatient(patientId), getProviders()]);
+
+    if (pres.status === "fulfilled") {
+      setPatient(pres.value);
+      setLoadError(null);
+    } else {
+      setPatient(null);
+      setLoadError(
+        pres.reason instanceof Error ? pres.reason.message : "Unable to load patient.",
+      );
+    }
+
+    if (prs.status === "fulfilled") {
+      setProvidersRaw(prs.value);
+      setProvidersError(null);
+    } else {
+      setProvidersRaw([]);
+      setProvidersError(
+        prs.reason instanceof Error ? prs.reason.message : "Could not load providers.",
+      );
+    }
+
+    setLoadingPatient(false);
+    setLoadingProviders(false);
   }, [patientId, facilityId]);
 
   useEffect(() => {
-    void loadPatient();
-  }, [loadPatient]);
+    void loadEncounterData();
+  }, [loadEncounterData]);
+
+  const bothFetchesComplete = !loadingPatient && !loadingProviders;
+
+  const providersActive = useMemo(
+    () =>
+      providersRaw.filter((p) => String(p.status ?? "").toUpperCase() === "ACTIVE"),
+    [providersRaw],
+  );
+
+  /** Tenant filtering only after patient + providers responses are both finished. */
+  const providersFiltered = useMemo(() => {
+    if (!bothFetchesComplete || !patient) {
+      return [] as ProviderListItem[];
+    }
+    const tid = patient.tenant_id?.trim();
+    if (!tid) {
+      return providersActive;
+    }
+    return providersActive.filter((p) => String(p.tenant_id) === String(tid));
+  }, [bothFetchesComplete, patient, providersActive]);
+
+  const noProvidersForTenant =
+    bothFetchesComplete &&
+    !!patient?.tenant_id?.trim() &&
+    providersActive.length > 0 &&
+    providersFiltered.length === 0;
 
   useEffect(() => {
+    if (loadingPatient || loadingProviders) return;
     if (!patient) {
-      setProviders([]);
-      setResolvedProviderId(null);
-      setProvidersError(null);
+      setSelectedProviderId(null);
       return;
     }
-    setLoadingProviders(true);
-    setProvidersError(null);
-    void getProviders(patient.tenant_id)
-      .then((list) => {
-        setProviders(list);
-        const first = list[0];
-        if (first) {
-          setResolvedProviderId(first.provider_id);
-        } else if (envProviderFallback) {
-          setResolvedProviderId(envProviderFallback);
-        } else {
-          setResolvedProviderId(null);
-        }
-      })
-      .catch((e) => {
-        setProviders([]);
-        setProvidersError(e instanceof Error ? e.message : "Could not load providers.");
-        if (envProviderFallback) {
-          setResolvedProviderId(envProviderFallback);
-        } else {
-          setResolvedProviderId(null);
-        }
-      })
-      .finally(() => setLoadingProviders(false));
-  }, [patient, envProviderFallback]);
+    if (!providersFiltered.length) {
+      setSelectedProviderId(null);
+      return;
+    }
+    setSelectedProviderId((prev) => {
+      const ids = providersFiltered.map((p) => String(p.provider_id));
+      if (prev && ids.includes(prev)) return prev;
+      return String(providersFiltered[0]!.provider_id);
+    });
+  }, [loadingPatient, loadingProviders, patient, providersFiltered]);
 
   const mismatchFacility =
     patient && patient.facility_id && patient.facility_id !== initial?.facilityId;
 
-  let disabledReason: string | null = null;
+  let structuralBlockReason: string | null = null;
   if (!initial) {
-    disabledReason =
+    structuralBlockReason =
       "Please select a patient from Census first (open Facilities → View Census → Open chart).";
   } else if (!apiOk) {
-    disabledReason = "Configure NEXT_PUBLIC_API_BASE_URL in .env.local.";
-  } else if (!resolvedProviderId && !loadingProviders) {
-    disabledReason =
-      "No providers returned for this tenant. Add a row to public.providers or set NEXT_PUBLIC_PROVIDER_ID.";
-  } else if (!signingUserId) {
-    disabledReason =
-      "Set NEXT_PUBLIC_SIGNING_USER_ID to a users.user_id (required to sign the visit note).";
+    structuralBlockReason = "Configure NEXT_PUBLIC_API_BASE_URL in .env.local.";
   } else if (mismatchFacility) {
-    disabledReason = "facilityId in the URL does not match the patient’s attributed facility.";
+    structuralBlockReason = "facilityId in the URL does not match the patient’s attributed facility.";
   }
 
+  const unitsNum = Number(String(units).replaceAll(",", ""));
+  const unitsOk = Number.isFinite(unitsNum) && unitsNum > 0;
+
+  const formComplete =
+    !!chiefComplaint.trim() &&
+    !!subjective.trim() &&
+    !!objective.trim() &&
+    !!assessment.trim() &&
+    !!plan.trim() &&
+    !!fullNote.trim() &&
+    !!icd10Code.trim() &&
+    !!cptCode.trim() &&
+    unitsOk;
+
+  const patientLoaded = !!(patient && !loadingPatient && !loadError);
+
+  const submitBlocked =
+    !!structuralBlockReason ||
+    busy ||
+    !patient ||
+    !!loadError ||
+    loadingPatient ||
+    loadingProviders ||
+    !!providersError ||
+    !selectedProviderId ||
+    !formComplete;
+
+  const submitHint =
+    !initial || busy || structuralBlockReason
+      ? null
+      : providersError
+        ? providersError
+        : loadingPatient || loadingProviders
+          ? null
+          : loadError
+            ? loadError
+            : !patient
+              ? null
+              : !selectedProviderId
+                ? null
+                : !formComplete
+                  ? "Fill chief complaint, all SOAP sections, full note, ICD-10, CPT, and units (> 0)."
+                  : null;
+
   async function submitWorkflow() {
-    if (!initial || !patient || !resolvedProviderId || !signingUserId) return;
+    if (!initial || !patient || !selectedProviderId) return;
+    const signingUserIdLocal = getDefaultSigningUserId();
+    if (!signingUserIdLocal) {
+      setSubmitError(
+        "Set NEXT_PUBLIC_SIGNING_USER_ID to a users.user_id (required to sign the visit note).",
+      );
+      return;
+    }
 
     setBusy(true);
     setSubmitError(null);
@@ -182,23 +264,26 @@ export function NewVisitWorkflow() {
       plan,
     });
 
+    let workflowStep = "";
     try {
+      workflowStep = "POST /visits";
       setStepHint("Creating visit…");
       const visit = await createVisit({
         tenant_id: patient.tenant_id,
         facility_id: initial.facilityId,
         patient_id: patient.patient_id,
-        provider_id: resolvedProviderId,
+        provider_id: selectedProviderId,
         visit_type: visitType.trim() || "visit",
         specialty: specialty.trim() || "general",
         chief_complaint: chiefComplaint.trim() || null,
       });
 
+      workflowStep = `POST /visits/${visit.visit_id}/notes`;
       setStepHint("Saving clinical note…");
       const note = await createVisitNote(visit.visit_id, {
         tenant_id: patient.tenant_id,
         patient_id: patient.patient_id,
-        provider_id: resolvedProviderId,
+        provider_id: selectedProviderId,
         subjective: subjective.trim() || null,
         objective: objective.trim() || null,
         assessment: assessment.trim() || null,
@@ -207,9 +292,11 @@ export function NewVisitWorkflow() {
         ai_generated: false,
       });
 
+      workflowStep = `PUT /notes/${note.note_id}/sign`;
       setStepHint("Signing note…");
-      await signNote(note.note_id, { signed_by: signingUserId });
+      await signNote(note.note_id, { signed_by: signingUserIdLocal });
 
+      workflowStep = `POST /visits/${visit.visit_id}/diagnoses`;
       setStepHint("Adding diagnosis…");
       await addDiagnosis(visit.visit_id, {
         tenant_id: patient.tenant_id,
@@ -218,6 +305,7 @@ export function NewVisitWorkflow() {
         is_ai_suggested: false,
       });
 
+      workflowStep = `POST /visits/${visit.visit_id}/procedures`;
       setStepHint("Adding procedure…");
       const u = Number(String(units).replaceAll(",", ""));
       await addProcedure(visit.visit_id, {
@@ -229,6 +317,7 @@ export function NewVisitWorkflow() {
         is_ai_suggested: false,
       });
 
+      workflowStep = `POST /visits/${visit.visit_id}/charges`;
       setStepHint("Submitting charge…");
       const wf = await submitCharge(visit.visit_id);
 
@@ -242,7 +331,8 @@ export function NewVisitWorkflow() {
         );
       }, 1600);
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : "Workflow failed.");
+      const detail = e instanceof Error ? e.message : String(e);
+      setSubmitError(workflowStep ? `${workflowStep} — ${detail}` : detail || "Workflow failed.");
     } finally {
       setBusy(false);
       setStepHint(null);
@@ -267,14 +357,25 @@ export function NewVisitWorkflow() {
             <CardDescription className="font-mono text-xs text-zinc-500">
               patientId={initial.patientId}&nbsp;·&nbsp;facilityId={initial.facilityId}
             </CardDescription>
+            <p className="pt-2 font-mono text-[10px] leading-snug text-zinc-400">
+              patientLoaded={String(patientLoaded)} · providersRawCount={providersRaw.length} ·
+              providersFilteredCount=
+              {bothFetchesComplete ? providersFiltered.length : "…"} · selectedProviderId=
+              {selectedProviderId ?? "none"}
+            </p>
           </CardHeader>
           <CardContent className="space-y-3">
+            {providersError ? (
+              <div className="rounded-lg border border-rose-200 bg-rose-50/70 px-3 py-2 text-sm text-rose-900">
+                Providers: {providersError}
+              </div>
+            ) : null}
             {loadingPatient ? (
               <p className="text-sm text-zinc-500">Loading patient…</p>
             ) : loadError ? (
               <div className="rounded-lg border border-rose-200 bg-rose-50/70 px-3 py-2 text-sm text-rose-900">
-                {loadError}{" "}
-                <button type="button" className="font-medium underline" onClick={() => void loadPatient()}>
+                Patient: {loadError}{" "}
+                <button type="button" className="font-medium underline" onClick={() => void loadEncounterData()}>
                   Retry
                 </button>
               </div>
@@ -286,13 +387,6 @@ export function NewVisitWorkflow() {
                     <span className="ml-2 font-mono text-xs text-zinc-500">MRN {patient.mrn}</span>
                   ) : null}
                 </p>
-                {providersError && envProviderFallback ? (
-                  <p className="text-xs text-amber-800">
-                    Provider directory unavailable ({providersError}). Using env fallback.
-                  </p>
-                ) : providersError && !envProviderFallback ? (
-                  <p className="text-xs text-rose-800">{providersError}</p>
-                ) : null}
                 {mismatchFacility ? (
                   <p className="text-sm text-amber-900">
                     Warning: census URL facility differs from the patient record in the database.
@@ -304,9 +398,9 @@ export function NewVisitWorkflow() {
         </Card>
       ) : null}
 
-      {disabledReason && initial ? (
+      {structuralBlockReason && initial ? (
         <Card className="border-amber-200 bg-amber-50/40">
-          <CardContent className="py-4 text-sm text-amber-950">{disabledReason}</CardContent>
+          <CardContent className="py-4 text-sm text-amber-950">{structuralBlockReason}</CardContent>
         </Card>
       ) : null}
 
@@ -321,43 +415,55 @@ export function NewVisitWorkflow() {
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <label className="col-span-full space-y-1 sm:col-span-2">
                 <span className="text-xs font-semibold uppercase text-zinc-500">Provider</span>
-                {loadingProviders ? (
+                {loadingPatient || loadingProviders ? (
                   <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-500">
-                    Loading providers from GET /providers…
+                    Loading patient and providers…
                   </p>
-                ) : null}
-                {!loadingProviders &&
-                resolvedProviderId &&
-                providers.some((x) => x.provider_id === resolvedProviderId) ? (
+                ) : providersError ? (
+                  <p className="rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-sm text-rose-900">
+                    Could not load provider directory — see Encounter context for the API error message.
+                  </p>
+                ) : bothFetchesComplete && loadError && !patient ? (
+                  <p className="rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-sm text-rose-900">
+                    Patient record failed to load. Fix the error in Encounter context above.
+                  </p>
+                ) : bothFetchesComplete &&
+                  patient &&
+                  noProvidersForTenant ? (
+                  <p className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-sm text-amber-950">
+                    No providers returned for this tenant.
+                  </p>
+                ) : bothFetchesComplete && patient && providersFiltered.length === 0 && !noProvidersForTenant ? (
+                  <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+                    {providersRaw.length === 0
+                      ? "GET /providers returned an empty list."
+                      : providersActive.length === 0
+                        ? "No ACTIVE providers in the directory response."
+                        : "No providers available to select."}
+                  </p>
+                ) : bothFetchesComplete &&
+                  patient &&
+                  selectedProviderId &&
+                  providersFiltered.some((x) => String(x.provider_id) === selectedProviderId) ? (
                   <select
                     className={inputClass}
-                    value={resolvedProviderId}
+                    value={selectedProviderId}
                     onChange={(e) => {
                       const id = e.target.value;
-                      setResolvedProviderId(id || null);
+                      setSelectedProviderId(id || null);
                     }}
                   >
-                    {providers.map((p) => (
-                      <option key={p.provider_id} value={p.provider_id}>
+                    {providersFiltered.map((p) => (
+                      <option key={String(p.provider_id)} value={String(p.provider_id)}>
                         {formatProviderOption(p)}
                       </option>
                     ))}
                   </select>
-                ) : null}
-                {!loadingProviders &&
-                resolvedProviderId &&
-                !providers.some((x) => x.provider_id === resolvedProviderId) ? (
-                  <p className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-sm text-amber-950">
-                    Using configured provider fallback (<code className="text-xs">NEXT_PUBLIC_PROVIDER_ID</code>
-                    ). No directory row to display.
+                ) : (
+                  <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-500">
+                    Waiting for patient and provider data…
                   </p>
-                ) : null}
-                {!loadingProviders && !resolvedProviderId ? (
-                  <p className="rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-sm text-rose-900">
-                    No active providers for this tenant. Seed providers or set{" "}
-                    <code className="text-xs">NEXT_PUBLIC_PROVIDER_ID</code>.
-                  </p>
-                ) : null}
+                )}
               </label>
               <label className="space-y-1">
                 <span className="text-xs font-semibold uppercase text-zinc-500">Visit type</span>
@@ -414,7 +520,7 @@ export function NewVisitWorkflow() {
               onChange={(e) => setFullNote(e.target.value)}
               rows={5}
               className={inputClass}
-              placeholder="If empty on submit, built automatically from SOAP above."
+              placeholder="Required for submit (or Generate from SOAP after filling all sections)."
             />
           </label>
           <div>
@@ -490,9 +596,7 @@ export function NewVisitWorkflow() {
           <div className="flex flex-wrap gap-3">
             <Button
               type="button"
-              disabled={
-                !!disabledReason || busy || !patient || loadingPatient || loadingProviders
-              }
+              disabled={submitBlocked}
               className="bg-emerald-700 hover:bg-emerald-800"
               onClick={() => void submitWorkflow()}
             >
@@ -507,6 +611,7 @@ export function NewVisitWorkflow() {
               Back to chart
             </Link>
           </div>
+          {!busy && submitHint ? <p className="text-xs text-zinc-600">{submitHint}</p> : null}
         </CardContent>
       </Card>
         </>

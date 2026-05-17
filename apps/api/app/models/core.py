@@ -138,7 +138,6 @@ class Provider(Base):
     specialty: Mapped[str | None] = mapped_column(String(128), nullable=True)
     provider_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE")
-    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

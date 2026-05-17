@@ -26,7 +26,7 @@ def _provider_display_name(provider: Provider | None, linked_user: User | None) 
         return "Unassigned provider"
     if linked_user is not None and linked_user.full_name:
         return linked_user.full_name
-    return provider.full_name or "Unassigned provider"
+    return "Unassigned provider"
 
 
 @router.get("", response_model=list[BillingQueueListItem])
