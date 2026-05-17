@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import "@/app/globals.css";
 
 export const metadata: Metadata = {
-  title: "MedNexa",
+  title: "MedNexa AI",
   description: "Clinical intelligence workspace",
 };
 
