@@ -188,6 +188,8 @@ export type ProcedureCreatedOut = {
 };
 
 export type ChargeWorkflowResult = {
+  visit_id: string;
+  visit_status: string;
   charge_id: string;
   queue_id: string;
   readiness_score: number;

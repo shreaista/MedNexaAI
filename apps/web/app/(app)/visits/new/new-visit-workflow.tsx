@@ -323,7 +323,7 @@ export function NewVisitWorkflow() {
 
       setStepHint(null);
       setSuccessToast(
-        `Charge queued · readiness ${wf.readiness_status} (${wf.readiness_score}). Redirecting…`,
+        `Visit ${wf.visit_status} · Charge queued · readiness ${wf.readiness_status} (${wf.readiness_score}). Redirecting…`,
       );
       setTimeout(() => {
         router.replace(

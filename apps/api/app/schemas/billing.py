@@ -6,6 +6,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ChargeWorkflowResult(BaseModel):
+    visit_id: UUID
+    visit_status: str
     charge_id: UUID
     queue_id: UUID
     readiness_score: float

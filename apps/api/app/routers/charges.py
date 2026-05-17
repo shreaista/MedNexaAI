@@ -109,8 +109,28 @@ def _billing_queue_row(tenant_id: UUID, charge_id: UUID) -> BillingQueue:
     )
 
 
+def _mark_visit_charge_complete(db: Session, visit_id: UUID) -> ClinicalVisit:
+    """Set clinical_visits.visit_status = COMPLETED after successful charge workflow (idempotent)."""
+    visit_row = db.get(ClinicalVisit, visit_id)
+    if visit_row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Visit not found")
+    if (visit_row.visit_status or "").strip().upper() != "COMPLETED":
+        visit_row.visit_status = "COMPLETED"
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=_safe_db_detail("update_visit_status_completed", e),
+            ) from e
+        db.refresh(visit_row)
+    return visit_row
+
+
 def _charge_workflow_result(
     *,
+    visit: ClinicalVisit,
     charge: Charge,
     queue: BillingQueue,
     readiness: ClaimReadiness,
@@ -119,6 +139,8 @@ def _charge_workflow_result(
     message: str | None = None,
 ) -> ChargeWorkflowResult:
     return ChargeWorkflowResult(
+        visit_id=visit.visit_id,
+        visit_status=visit.visit_status or "COMPLETED",
         charge_id=charge.charge_id,
         queue_id=queue.queue_id,
         readiness_score=float(readiness.readiness_score),
@@ -221,6 +243,7 @@ def create_charge_from_visit(
         queue_row, readiness_row, repaired = _ensure_queue_and_readiness(
             db, visit, existing_charge, ev
         )
+        visit_completed = _mark_visit_charge_complete(db, visit_id)
         msg = (
             "Charge workflow already exists for this visit. Returning existing workflow."
             if not repaired
@@ -228,6 +251,7 @@ def create_charge_from_visit(
         )
         response.status_code = status.HTTP_200_OK
         return _charge_workflow_result(
+            visit=visit_completed,
             charge=existing_charge,
             queue=queue_row,
             readiness=readiness_row,
@@ -274,11 +298,13 @@ def create_charge_from_visit(
                 queue_row, readiness_row, repaired = _ensure_queue_and_readiness(
                     db, visit, concurrent, ev2
                 )
+                visit_completed = _mark_visit_charge_complete(db, visit_id)
                 msg = "Charge workflow already exists for this visit. Returning existing workflow."
                 if repaired:
                     msg += " Repaired missing billing rows if needed."
                 response.status_code = status.HTTP_200_OK
                 return _charge_workflow_result(
+                    visit=visit_completed,
                     charge=concurrent,
                     queue=queue_row,
                     readiness=readiness_row,
@@ -313,8 +339,11 @@ def create_charge_from_visit(
             detail="insert_charge_workflow: billing_queue or claim_readiness missing after commit.",
         )
 
+    visit_completed = _mark_visit_charge_complete(db, visit_id)
+
     response.status_code = status.HTTP_201_CREATED
     return _charge_workflow_result(
+        visit=visit_completed,
         charge=persisted,
         queue=queue_row,
         readiness=readiness_row,
